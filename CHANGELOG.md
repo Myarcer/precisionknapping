@@ -24,10 +24,9 @@
   - Risky! If protected voxels are in the path, they count as mistakes
 - Durability scaling based on mistakes made during crafting
 
-**Advanced Swings** (`AdvancedSwings: false` by default)
-- Hold-to-charge mechanic: Must hold left mouse for `ChargeTimeSeconds` (default 0.4s) before knap triggers
-- Early release cancels action with feedback sound
-- Prevents accidental rapid clicks
+**Fracture Physics** (Advanced Mode)
+- Configurable cone-shaped fracture patterns based on real flint knapping mechanics
+- Settings: `FractureConeAngle`, `FractureSpreadRate`, `FractureDecay`, `FractureBaseProbability`
 
 ### Technical Changes
 - Refactored into modular patch classes for maintainability
@@ -39,10 +38,12 @@
 ### Config Reference
 ```json
 {
-  "AdvancedMode": false,        // Edge enforcement + durability scaling
-  "MistakeAllowance": 1,        // Mistakes before stone breaks
-  "AdvancedSwings": false,      // Hold-to-charge timing
-  "ChargeTimeSeconds": 0.4      // Seconds to hold for charged swing
+  "AdvancedMode": false,           // Edge enforcement + durability scaling
+  "MistakeAllowance": 1,           // Mistakes before stone breaks
+  "FractureConeAngle": 90,         // Degrees (0-180)
+  "FractureSpreadRate": 0.4,       // How fast cone widens (0-1)
+  "FractureDecay": 0.15,           // Randomness increase per distance (0-0.5)
+  "FractureBaseProbability": 0.85  // Base chance per voxel in cone (0-1)
 }
 ```
 

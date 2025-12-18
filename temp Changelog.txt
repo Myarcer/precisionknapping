@@ -1,0 +1,19 @@
+v1.1.0 Changelog
+New: Configuration System
+
+Added precisionknapping.json config file
+New: Mistake Tolerance
+
+MistakeAllowance setting - configurable mistakes before stone breaks
+New: Advanced Mode (opt-in via AdvancedMode: true)
+
+Edge enforcement: must work from edges inward
+Realistic fracture cone physics when clicking interior voxels
+Durability scaling: mistakes reduce tool durability
+New: Fracture Physics Settings (Advanced Mode)
+
+FractureConeAngle, FractureSpreadRate, FractureDecay, FractureBaseProbability
+Fixes
+
+Virtual edge detection for recipe holes
+Modded knapping recipes (maceheads, etc.) now work
