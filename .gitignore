@@ -1,0 +1,38 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+bin/
+obj/
+.release/
+.modpackage/
+*.dll
+!lib/*.dll
+*.exe
+*.pdb
+
+# VS Code
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Development files (not for public repo)
+obsolete_files/
+Research/
+RELEASE_INFO.md
+build.py
+create_icon.py
+RawIcon Big.png
+__pycache__/
+
+# Release artifacts (rebuild from source)
+Releases/

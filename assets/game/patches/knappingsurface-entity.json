@@ -1,0 +1,8 @@
+[
+  {
+    "op": "replace",
+    "path": "/entityClass",
+    "value": "PrecisionKnappingSurface",
+    "file": "game:blocktypes/generic/loosestones/knappingsurface.json"
+  }
+]

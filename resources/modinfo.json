@@ -1,0 +1,15 @@
+{
+  "type": "code",
+  "modid": "precisionknapping",
+  "name": "Precision Knapping",
+  "authors": [
+    "Nyarc"
+  ],
+  "description": "Adds precision mechanics to knapping. Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, mistake tolerance with durability scaling, and optional charged swings.",
+  "version": "1.1.0",
+  "dependencies": {
+    "game": "1.21.0"
+  },
+  "website": "https://github.com/VRNyarc/precisionknapping",
+  "contributors": []
+}

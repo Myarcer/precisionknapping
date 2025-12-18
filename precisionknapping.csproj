@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>precisionknapping</AssemblyName>
+    <RootNamespace>precisionknapping</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>lib\VintagestoryAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="resources\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
+  </ItemGroup>
+
+  <Target Name="Package" AfterTargets="Build">
+    <ItemGroup>
+      <ModFiles Include="$(OutputPath)$(AssemblyName).dll" />
+      <AssetFiles Include="assets\**\*" />
+      <ResourceFiles Include="resources\**\*" />
+    </ItemGroup>
+
+    <MakeDir Directories="Releases" />
+    <MakeDir Directories=".modpackage" />
+
+    <!-- Copy modinfo.json to root -->
+    <Copy SourceFiles="resources\modinfo.json" DestinationFiles=".modpackage\modinfo.json" />
+
+    <!-- Copy README to root -->
+    <Copy SourceFiles="README.md" DestinationFiles=".modpackage\README.md" Condition="Exists('README.md')" />
+
+    <!-- Copy DLL to root -->
+    <Copy SourceFiles="@(ModFiles)" DestinationFolder=".modpackage" />
+
+    <!-- Copy assets -->
+    <Copy SourceFiles="@(AssetFiles)" DestinationFiles="@(AssetFiles->'.modpackage\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+    <ZipDirectory SourceDirectory=".modpackage" DestinationFile="Releases\precisionknapping_v1.1.0.zip" Overwrite="true" />
+
+    <RemoveDir Directories=".modpackage" />
+
+    <!-- Deploy to VS mods folder -->
+    <Copy SourceFiles="Releases\precisionknapping_v1.1.0.zip" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
+  </Target>
+</Project>
