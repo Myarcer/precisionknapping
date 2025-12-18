@@ -63,6 +63,15 @@ namespace precisionknapping
         /// Default: 0.85
         /// </summary>
         public float FractureBaseProbability { get; set; } = 0.85f;
+
+        /// <summary>
+        /// Enable Learn Mode visual overlay when knapping.
+        /// Colors waste voxels by safety: green = safe (edge/enclosed), yellow/red = risky (would cause fracture).
+        /// Protected voxels (final tool shape) remain uncolored.
+        /// Client-side only, no performance impact on server.
+        /// Default: false
+        /// </summary>
+        public bool LearnModeOverlay { get; set; } = false;
     }
 
     #endregion
@@ -174,6 +183,13 @@ namespace precisionknapping
         public override void StartClientSide(ICoreClientAPI api)
         {
             base.StartClientSide(api);
+
+            // Initialize Learn Mode overlay if enabled
+            if (Config?.LearnModeOverlay == true)
+            {
+                new LearnModeOverlayRenderer(api);
+                api.Logger.Notification("[PrecisionKnapping] Learn Mode overlay enabled");
+            }
         }
 
         public static RecipePatternManager GetPatternManager()
