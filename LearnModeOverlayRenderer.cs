@@ -7,25 +7,74 @@ using System.Collections.Generic;
 namespace precisionknapping
 {
     /// <summary>
-    /// Client-side overlay that displays voxel safety when looking at knapping surfaces.
-    /// Uses the HighlightBlocks API (proven working approach from InstabilityHeatmap).
-    /// Shows the knapping block highlighted with a color based on overall safety.
+    /// Client-side overlay that displays per-voxel safety indicators on knapping surfaces.
+    /// Uses particles to show colored dots at each waste voxel position.
+    /// Green = safe, Yellow = low risk, Red = high risk.
     /// </summary>
     public class LearnModeOverlayRenderer
     {
         private readonly ICoreClientAPI capi;
         private BlockPos currentKnappingPos;
         private double lastUpdateTime = 0;
-        private const double UPDATE_INTERVAL_MS = 200;
-        private const int HIGHLIGHT_SLOT = 82001;
-        
-        private bool hasActiveHighlight = false;
+        private const double UPDATE_INTERVAL_MS = 500; // Spawn particles every 500ms
+
+        // Particle properties for each safety level
+        private SimpleParticleProperties safeParticle;
+        private SimpleParticleProperties riskyParticle;
+        private SimpleParticleProperties dangerParticle;
 
         public LearnModeOverlayRenderer(ICoreClientAPI api)
         {
             capi = api;
-            capi.Event.RegisterGameTickListener(OnClientTick, 50);
-            capi.Logger.Notification("[PrecisionKnapping] Learn Mode overlay initialized");
+            
+            // Initialize particle templates
+            InitParticles();
+            
+            capi.Event.RegisterGameTickListener(OnClientTick, 100);
+            capi.Logger.Notification("[PrecisionKnapping] Learn Mode overlay initialized (particle-based)");
+        }
+
+        private void InitParticles()
+        {
+            // Safe - Green particle
+            safeParticle = new SimpleParticleProperties(
+                1, 1,                          // minQuantity, maxQuantity
+                ColorUtil.ColorFromRgba(50, 220, 50, 180),  // color
+                new Vec3d(), new Vec3d(),      // minPos, addPos (set per spawn)
+                new Vec3f(0, 0.02f, 0),        // minVelocity - slight upward drift
+                new Vec3f(0, 0.02f, 0),        // maxVelocity
+                0.5f,                          // lifeLength
+                0f,                            // gravityEffect
+                0.03f, 0.05f                   // minSize, maxSize
+            );
+            safeParticle.ParticleModel = EnumParticleModel.Cube;
+            safeParticle.SelfPropelled = true;
+
+            // Risky - Yellow particle
+            riskyParticle = new SimpleParticleProperties(
+                1, 1,
+                ColorUtil.ColorFromRgba(220, 220, 50, 180),
+                new Vec3d(), new Vec3d(),
+                new Vec3f(0, 0.02f, 0),
+                new Vec3f(0, 0.02f, 0),
+                0.5f, 0f,
+                0.03f, 0.05f
+            );
+            riskyParticle.ParticleModel = EnumParticleModel.Cube;
+            riskyParticle.SelfPropelled = true;
+
+            // Danger - Red particle
+            dangerParticle = new SimpleParticleProperties(
+                1, 1,
+                ColorUtil.ColorFromRgba(220, 50, 50, 180),
+                new Vec3d(), new Vec3d(),
+                new Vec3f(0, 0.02f, 0),
+                new Vec3f(0, 0.02f, 0),
+                0.5f, 0f,
+                0.03f, 0.05f
+            );
+            dangerParticle.ParticleModel = EnumParticleModel.Cube;
+            dangerParticle.SelfPropelled = true;
         }
 
         private void OnClientTick(float deltaTime)
@@ -36,28 +85,27 @@ namespace precisionknapping
             BlockSelection blockSel = player.CurrentBlockSelection;
             if (blockSel == null)
             {
-                ClearHighlights();
+                currentKnappingPos = null;
                 return;
             }
 
             var blockEntity = capi.World.BlockAccessor.GetBlockEntity(blockSel.Position);
             if (blockEntity == null || !IsKnappingSurface(blockEntity))
             {
-                ClearHighlights();
+                currentKnappingPos = null;
                 return;
             }
 
-            // Throttle updates
+            // Throttle particle spawns
             double now = capi.World.ElapsedMilliseconds;
-            if (currentKnappingPos != null && currentKnappingPos.Equals(blockSel.Position) &&
-                now - lastUpdateTime < UPDATE_INTERVAL_MS)
+            if (now - lastUpdateTime < UPDATE_INTERVAL_MS)
             {
                 return;
             }
 
             currentKnappingPos = blockSel.Position.Copy();
             lastUpdateTime = now;
-            UpdateHighlights(blockEntity);
+            SpawnVoxelParticles(blockEntity);
         }
 
         private bool IsKnappingSurface(BlockEntity entity)
@@ -65,73 +113,63 @@ namespace precisionknapping
             return entity.GetType().Name == "BlockEntityKnappingSurface";
         }
 
-        private void UpdateHighlights(BlockEntity knappingEntity)
+        private void SpawnVoxelParticles(BlockEntity knappingEntity)
         {
             try
             {
                 var currentVoxels = KnappingReflectionHelper.GetCurrentVoxels(knappingEntity);
                 var selectedRecipe = KnappingReflectionHelper.GetSelectedRecipe(knappingEntity);
 
-                if (currentVoxels == null || selectedRecipe == null)
-                {
-                    ClearHighlights();
-                    return;
-                }
+                if (currentVoxels == null || selectedRecipe == null) return;
 
                 var recipeVoxels = KnappingReflectionHelper.GetRecipeVoxels(selectedRecipe);
-                if (recipeVoxels == null)
-                {
-                    ClearHighlights();
-                    return;
-                }
+                if (recipeVoxels == null) return;
 
-                // Analyze all voxels
-                var analysis = AnalyzeAllVoxels(currentVoxels, recipeVoxels);
-                
-                // Show highlight on the block with color based on overall safety
-                ApplyBlockHighlight(analysis);
+                var config = PrecisionKnappingModSystem.Config;
+                float voxelSize = 1f / 16f;
+
+                // Spawn a particle at each waste voxel position
+                for (int x = 0; x < 16; x++)
+                {
+                    for (int z = 0; z < 16; z++)
+                    {
+                        if (!currentVoxels[x, z]) continue;
+
+                        bool isProtected = recipeVoxels[x, 0, z];
+                        if (isProtected) continue; // Don't show particles on protected voxels
+
+                        int safety = AnalyzeVoxelSafety(x, z, currentVoxels, recipeVoxels, config);
+                        
+                        // Calculate world position for this voxel
+                        double worldX = currentKnappingPos.X + (x + 0.5) * voxelSize;
+                        double worldY = currentKnappingPos.Y + 1.01; // Slightly above surface
+                        double worldZ = currentKnappingPos.Z + (z + 0.5) * voxelSize;
+
+                        // Select particle based on safety
+                        SimpleParticleProperties particle;
+                        if (safety == 0) particle = safeParticle;
+                        else if (safety == 1) particle = riskyParticle;
+                        else particle = dangerParticle;
+
+                        // Set position and spawn
+                        particle.MinPos.Set(worldX, worldY, worldZ);
+                        capi.World.SpawnParticles(particle);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                capi.Logger.Debug($"[PrecisionKnapping] Learn mode error: {ex.Message}");
-                ClearHighlights();
+                capi.Logger.Debug($"[PrecisionKnapping] Particle spawn error: {ex.Message}");
             }
-        }
-
-        private (int safe, int risky, int danger) AnalyzeAllVoxels(bool[,] currentVoxels, bool[,,] recipeVoxels)
-        {
-            var config = PrecisionKnappingModSystem.Config;
-            int safeCount = 0;
-            int riskyCount = 0;
-            int dangerCount = 0;
-
-            for (int x = 0; x < 16; x++)
-            {
-                for (int z = 0; z < 16; z++)
-                {
-                    if (!currentVoxels[x, z]) continue;
-
-                    bool isProtected = recipeVoxels[x, 0, z];
-                    if (isProtected) continue;
-
-                    int safety = AnalyzeVoxelSafety(x, z, currentVoxels, recipeVoxels, config);
-                    
-                    if (safety == 0) safeCount++;
-                    else if (safety == 1) riskyCount++;
-                    else dangerCount++;
-                }
-            }
-
-            return (safeCount, riskyCount, dangerCount);
         }
 
         private int AnalyzeVoxelSafety(int x, int z, bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config)
         {
-            // Edge voxel = Safe
+            // Edge voxel = Safe (0)
             if (AdvancedKnappingHelper.IsEdgeVoxel(x, z, currentVoxels, recipeVoxels))
                 return 0;
 
-            // Enclosed waste pocket = Safe
+            // Enclosed waste pocket = Safe (0)
             var pocket = AdvancedKnappingHelper.FindConnectedWastePocket(x, z, currentVoxels, recipeVoxels);
             if (pocket.Count > 0)
                 return 0;
@@ -148,84 +186,9 @@ namespace precisionknapping
                     protectedInPath++;
             }
 
-            if (protectedInPath == 0) return 0;
-            else if (protectedInPath <= 2) return 1;
-            else return 2;
-        }
-
-        private void ApplyBlockHighlight((int safe, int risky, int danger) analysis)
-        {
-            var player = capi.World.Player;
-            if (player == null || currentKnappingPos == null) return;
-
-            var positions = new List<BlockPos> { currentKnappingPos.Copy() };
-            var colors = new List<int>();
-
-            // Determine overall color based on remaining voxels
-            int total = analysis.safe + analysis.risky + analysis.danger;
-            int color;
-            
-            if (total == 0 || analysis.safe == total)
-            {
-                // All safe - green
-                color = ColorUtil.ColorFromRgba(50, 220, 50, 80);
-            }
-            else if (analysis.danger > analysis.risky)
-            {
-                // Mostly dangerous - red
-                color = ColorUtil.ColorFromRgba(220, 50, 50, 80);
-            }
-            else if (analysis.risky > 0 || analysis.danger > 0)
-            {
-                // Some risk - yellow
-                color = ColorUtil.ColorFromRgba(220, 220, 50, 80);
-            }
-            else
-            {
-                // Safe - green
-                color = ColorUtil.ColorFromRgba(50, 220, 50, 80);
-            }
-            
-            colors.Add(color);
-
-            capi.World.HighlightBlocks(
-                player,
-                HIGHLIGHT_SLOT,
-                positions,
-                colors,
-                EnumHighlightBlocksMode.Absolute,
-                EnumHighlightShape.Arbitrary,
-                1f
-            );
-
-            hasActiveHighlight = true;
-
-            // Also show status in chat (throttled)
-            string status = $"[Learn Mode] Safe: {analysis.safe} | Risky: {analysis.risky} | Danger: {analysis.danger}";
-            // Only show message occasionally to not spam
-            if (capi.World.ElapsedMilliseconds % 2000 < 100)
-            {
-                capi.ShowChatMessage(status);
-            }
-        }
-
-        private void ClearHighlights()
-        {
-            if (!hasActiveHighlight) return;
-
-            var player = capi.World?.Player;
-            if (player == null) return;
-
-            capi.World.HighlightBlocks(
-                player,
-                HIGHLIGHT_SLOT,
-                new List<BlockPos>(),
-                EnumHighlightBlocksMode.Absolute,
-                EnumHighlightShape.Arbitrary
-            );
-
-            hasActiveHighlight = false;
-            currentKnappingPos = null;
+            if (protectedInPath == 0) return 0;      // Safe
+            else if (protectedInPath <= 2) return 1; // Risky
+            else return 2;                           // Danger
         }
     }
 }
