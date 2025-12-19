@@ -145,6 +145,7 @@ namespace precisionknapping
 
         /// <summary>
         /// Returns: 0 = safe edge, 1 = safe enclosed, 2 = low risk, 3 = high risk
+        /// Uses DETERMINISTIC checks only - no random fracture simulation
         /// </summary>
         private int AnalyzeVoxelSafety(int x, int z, bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config)
         {
@@ -161,21 +162,28 @@ namespace precisionknapping
                 return 1;
             }
 
-            // Check 3: Calculate fracture damage if clicked
+            // Check 3: Use PATH LENGTH as proxy for danger (deterministic, no randomness)
+            // Longer path = more voxels crossed = higher chance of hitting protected voxels
             var path = AdvancedKnappingHelper.FindPathToNearestEdge(x, z, currentVoxels, recipeVoxels);
             if (path.Count == 0)
             {
                 return 0; // Isolated, treated as safe
             }
 
-            // Calculate fracture zone
-            var fractureZone = FractureCalculator.CalculateFractureZone(path, currentVoxels, config);
-            int protectedHit = FractureCalculator.CountProtectedInZone(fractureZone, recipeVoxels, currentVoxels);
+            // Count protected voxels ALONG THE PATH (deterministic)
+            int protectedInPath = 0;
+            foreach (var pos in path)
+            {
+                if (recipeVoxels[pos.X, 0, pos.Y] && currentVoxels[pos.X, pos.Y])
+                {
+                    protectedInPath++;
+                }
+            }
 
             // Categorize by damage potential
-            if (protectedHit == 0) return 0;
-            else if (protectedHit <= 2) return 2;
-            else return 3;
+            if (protectedInPath == 0) return 0;      // Path is clear
+            else if (protectedInPath <= 2) return 2; // Low risk
+            else return 3;                           // High risk
         }
 
         private void ClearHighlights()
