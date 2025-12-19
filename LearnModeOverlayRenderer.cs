@@ -8,29 +8,27 @@ namespace precisionknapping
 {
     /// <summary>
     /// Client-side overlay that displays voxel safety when looking at knapping surfaces.
-    /// Renders colored quads above each waste voxel: green=safe, yellow=low risk, red=high risk.
-    /// Protected voxels (final tool shape) are not colored.
+    /// Uses the HighlightBlocks API (proven working approach from InstabilityHeatmap).
+    /// Shows the knapping block highlighted with a color based on overall safety.
     /// </summary>
-    public class LearnModeOverlayRenderer : IRenderer
+    public class LearnModeOverlayRenderer
     {
         private readonly ICoreClientAPI capi;
-        private MeshRef overlayMeshRef;
         private BlockPos currentKnappingPos;
-        private int lastVoxelHash = 0;
         private double lastUpdateTime = 0;
-        private const double UPDATE_INTERVAL_MS = 150;
-
-        public double RenderOrder => 0.91; // After opaque blocks
-        public int RenderRange => 24;
+        private const double UPDATE_INTERVAL_MS = 200;
+        private const int HIGHLIGHT_SLOT = 82001;
+        
+        private bool hasActiveHighlight = false;
 
         public LearnModeOverlayRenderer(ICoreClientAPI api)
         {
             capi = api;
-            capi.Event.RegisterRenderer(this, EnumRenderStage.AfterFinalComposition, "precisionknapping-learnmode");
+            capi.Event.RegisterGameTickListener(OnClientTick, 50);
             capi.Logger.Notification("[PrecisionKnapping] Learn Mode overlay initialized");
         }
 
-        public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
+        private void OnClientTick(float deltaTime)
         {
             var player = capi.World?.Player;
             if (player == null) return;
@@ -38,30 +36,28 @@ namespace precisionknapping
             BlockSelection blockSel = player.CurrentBlockSelection;
             if (blockSel == null)
             {
-                ClearOverlay();
+                ClearHighlights();
                 return;
             }
 
             var blockEntity = capi.World.BlockAccessor.GetBlockEntity(blockSel.Position);
             if (blockEntity == null || !IsKnappingSurface(blockEntity))
             {
-                ClearOverlay();
+                ClearHighlights();
                 return;
             }
 
-            // Check if we need to update the mesh
+            // Throttle updates
             double now = capi.World.ElapsedMilliseconds;
-            bool positionChanged = currentKnappingPos == null || !currentKnappingPos.Equals(blockSel.Position);
-            bool needsUpdate = positionChanged || (now - lastUpdateTime > UPDATE_INTERVAL_MS);
-
-            if (needsUpdate)
+            if (currentKnappingPos != null && currentKnappingPos.Equals(blockSel.Position) &&
+                now - lastUpdateTime < UPDATE_INTERVAL_MS)
             {
-                currentKnappingPos = blockSel.Position.Copy();
-                lastUpdateTime = now;
-                RebuildOverlayMesh(blockEntity);
+                return;
             }
 
-            RenderMesh();
+            currentKnappingPos = blockSel.Position.Copy();
+            lastUpdateTime = now;
+            UpdateHighlights(blockEntity);
         }
 
         private bool IsKnappingSurface(BlockEntity entity)
@@ -69,7 +65,7 @@ namespace precisionknapping
             return entity.GetType().Name == "BlockEntityKnappingSurface";
         }
 
-        private void RebuildOverlayMesh(BlockEntity knappingEntity)
+        private void UpdateHighlights(BlockEntity knappingEntity)
         {
             try
             {
@@ -78,43 +74,37 @@ namespace precisionknapping
 
                 if (currentVoxels == null || selectedRecipe == null)
                 {
-                    ClearOverlay();
+                    ClearHighlights();
                     return;
                 }
 
                 var recipeVoxels = KnappingReflectionHelper.GetRecipeVoxels(selectedRecipe);
                 if (recipeVoxels == null)
                 {
-                    ClearOverlay();
+                    ClearHighlights();
                     return;
                 }
 
-                // Generate colored overlay mesh
-                var meshData = GenerateVoxelOverlayMesh(currentVoxels, recipeVoxels);
+                // Analyze all voxels
+                var analysis = AnalyzeAllVoxels(currentVoxels, recipeVoxels);
                 
-                if (meshData != null && meshData.VerticesCount > 0)
-                {
-                    overlayMeshRef?.Dispose();
-                    overlayMeshRef = capi.Render.UploadMesh(meshData);
-                }
-                else
-                {
-                    ClearOverlay();
-                }
+                // Show highlight on the block with color based on overall safety
+                ApplyBlockHighlight(analysis);
             }
             catch (Exception ex)
             {
-                capi.Logger.Debug($"[PrecisionKnapping] Overlay mesh error: {ex.Message}");
-                ClearOverlay();
+                capi.Logger.Debug($"[PrecisionKnapping] Learn mode error: {ex.Message}");
+                ClearHighlights();
             }
         }
 
-        private MeshData GenerateVoxelOverlayMesh(bool[,] currentVoxels, bool[,,] recipeVoxels)
+        private (int safe, int risky, int danger) AnalyzeAllVoxels(bool[,] currentVoxels, bool[,,] recipeVoxels)
         {
             var config = PrecisionKnappingModSystem.Config;
-            var quads = new List<(int x, int z, int color)>();
+            int safeCount = 0;
+            int riskyCount = 0;
+            int dangerCount = 0;
 
-            // Analyze each voxel
             for (int x = 0; x < 16; x++)
             {
                 for (int z = 0; z < 16; z++)
@@ -122,64 +112,31 @@ namespace precisionknapping
                     if (!currentVoxels[x, z]) continue;
 
                     bool isProtected = recipeVoxels[x, 0, z];
-                    if (isProtected) continue; // Don't overlay protected voxels
+                    if (isProtected) continue;
 
                     int safety = AnalyzeVoxelSafety(x, z, currentVoxels, recipeVoxels, config);
-                    int color = GetColorForSafety(safety);
-                    quads.Add((x, z, color));
+                    
+                    if (safety == 0) safeCount++;
+                    else if (safety == 1) riskyCount++;
+                    else dangerCount++;
                 }
             }
 
-            if (quads.Count == 0) return null;
-
-            // Build mesh with colored quads
-            // Each quad: 4 vertices, 6 indices (2 triangles)
-            var mesh = new MeshData(quads.Count * 4, quads.Count * 6, false, false, true, false);
-            
-            float voxelSize = 1f / 16f;
-            float yOffset = 1.002f; // Slightly above the stone surface (stone is at y+1)
-
-            int idx = 0;
-            foreach (var (vx, vz, color) in quads)
-            {
-                float x0 = vx * voxelSize;
-                float x1 = (vx + 1) * voxelSize;
-                float z0 = vz * voxelSize;
-                float z1 = (vz + 1) * voxelSize;
-
-                // Add 4 vertices (position + color)
-                mesh.AddVertexSkipTex(x0, yOffset, z0, color);
-                mesh.AddVertexSkipTex(x1, yOffset, z0, color);
-                mesh.AddVertexSkipTex(x1, yOffset, z1, color);
-                mesh.AddVertexSkipTex(x0, yOffset, z1, color);
-
-                // Two triangles
-                int baseIdx = idx * 4;
-                mesh.AddIndex(baseIdx);
-                mesh.AddIndex(baseIdx + 1);
-                mesh.AddIndex(baseIdx + 2);
-                mesh.AddIndex(baseIdx);
-                mesh.AddIndex(baseIdx + 2);
-                mesh.AddIndex(baseIdx + 3);
-
-                idx++;
-            }
-
-            return mesh;
+            return (safeCount, riskyCount, dangerCount);
         }
 
         private int AnalyzeVoxelSafety(int x, int z, bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config)
         {
-            // Check 1: Edge voxel = Safe
+            // Edge voxel = Safe
             if (AdvancedKnappingHelper.IsEdgeVoxel(x, z, currentVoxels, recipeVoxels))
                 return 0;
 
-            // Check 2: Enclosed waste pocket = Safe
+            // Enclosed waste pocket = Safe
             var pocket = AdvancedKnappingHelper.FindConnectedWastePocket(x, z, currentVoxels, recipeVoxels);
             if (pocket.Count > 0)
                 return 0;
 
-            // Check 3: Path to edge - count protected voxels in path
+            // Path to edge - count protected voxels
             var path = AdvancedKnappingHelper.FindPathToNearestEdge(x, z, currentVoxels, recipeVoxels);
             if (path.Count == 0)
                 return 0;
@@ -196,70 +153,79 @@ namespace precisionknapping
             else return 2;
         }
 
-        private int GetColorForSafety(int safety)
+        private void ApplyBlockHighlight((int safe, int risky, int danger) analysis)
         {
-            // Colors with alpha for transparency (RGBA format)
-            switch (safety)
+            var player = capi.World.Player;
+            if (player == null || currentKnappingPos == null) return;
+
+            var positions = new List<BlockPos> { currentKnappingPos.Copy() };
+            var colors = new List<int>();
+
+            // Determine overall color based on remaining voxels
+            int total = analysis.safe + analysis.risky + analysis.danger;
+            int color;
+            
+            if (total == 0 || analysis.safe == total)
             {
-                case 0: // Safe - green
-                    return ColorUtil.ColorFromRgba(50, 220, 50, 120);
-                case 1: // Low risk - yellow
-                    return ColorUtil.ColorFromRgba(220, 220, 50, 120);
-                case 2: // High risk - red
-                    return ColorUtil.ColorFromRgba(220, 50, 50, 120);
-                default:
-                    return ColorUtil.ColorFromRgba(100, 100, 100, 80);
+                // All safe - green
+                color = ColorUtil.ColorFromRgba(50, 220, 50, 80);
+            }
+            else if (analysis.danger > analysis.risky)
+            {
+                // Mostly dangerous - red
+                color = ColorUtil.ColorFromRgba(220, 50, 50, 80);
+            }
+            else if (analysis.risky > 0 || analysis.danger > 0)
+            {
+                // Some risk - yellow
+                color = ColorUtil.ColorFromRgba(220, 220, 50, 80);
+            }
+            else
+            {
+                // Safe - green
+                color = ColorUtil.ColorFromRgba(50, 220, 50, 80);
+            }
+            
+            colors.Add(color);
+
+            capi.World.HighlightBlocks(
+                player,
+                HIGHLIGHT_SLOT,
+                positions,
+                colors,
+                EnumHighlightBlocksMode.Absolute,
+                EnumHighlightShape.Arbitrary,
+                1f
+            );
+
+            hasActiveHighlight = true;
+
+            // Also show status in chat (throttled)
+            string status = $"[Learn Mode] Safe: {analysis.safe} | Risky: {analysis.risky} | Danger: {analysis.danger}";
+            // Only show message occasionally to not spam
+            if (capi.World.ElapsedMilliseconds % 2000 < 100)
+            {
+                capi.ShowChatMessage(status);
             }
         }
 
-        private void RenderMesh()
+        private void ClearHighlights()
         {
-            if (overlayMeshRef == null || currentKnappingPos == null) return;
+            if (!hasActiveHighlight) return;
 
-            var player = capi.World.Player;
+            var player = capi.World?.Player;
             if (player == null) return;
 
-            IRenderAPI rapi = capi.Render;
-            
-            // Calculate position relative to camera
-            Vec3d camPos = player.Entity.CameraPos;
-            
-            Matrixf modelMat = new Matrixf();
-            modelMat.Identity();
-            modelMat.Translate(
-                (float)(currentKnappingPos.X - camPos.X),
-                (float)(currentKnappingPos.Y - camPos.Y),
-                (float)(currentKnappingPos.Z - camPos.Z)
+            capi.World.HighlightBlocks(
+                player,
+                HIGHLIGHT_SLOT,
+                new List<BlockPos>(),
+                EnumHighlightBlocksMode.Absolute,
+                EnumHighlightShape.Arbitrary
             );
 
-            // Use the standard shader with prepared uniforms
-            IShaderProgram shader = rapi.PreparedStandardShader(
-                currentKnappingPos.X, 
-                currentKnappingPos.Y, 
-                currentKnappingPos.Z
-            );
-            
-            shader.Uniform("rgbaAmbientIn", rapi.AmbientColor);
-            shader.Uniform("rgbaBlockIn", ColorUtil.WhiteArgbVec);
-            shader.Uniform("extraGlow", 0);
-            shader.UniformMatrix("modelMatrix", modelMat.Values);
-            shader.UniformMatrix("viewMatrix", rapi.CameraMatrixOriginf);
-            
-            rapi.RenderMesh(overlayMeshRef);
-            shader.Stop();
-        }
-
-        private void ClearOverlay()
-        {
-            overlayMeshRef?.Dispose();
-            overlayMeshRef = null;
+            hasActiveHighlight = false;
             currentKnappingPos = null;
-        }
-
-        public void Dispose()
-        {
-            ClearOverlay();
-            capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterFinalComposition);
         }
     }
 }
