@@ -72,6 +72,14 @@ namespace precisionknapping
         /// Default: false
         /// </summary>
         public bool LearnModeOverlay { get; set; } = false;
+
+        /// <summary>
+        /// Bonus durability multiplier for PERFECT knapping (0 mistakes).
+        /// This is ADDED to base durability: 0.25 = +25% durability (1.25x total)
+        /// Set to 0 to disable bonuses (penalties still apply).
+        /// Default: 0.25 (25% bonus)
+        /// </summary>
+        public float PerfectKnappingBonus { get; set; } = 0.25f;
     }
 
     #endregion
@@ -625,9 +633,24 @@ namespace precisionknapping
         {
             if (player is IServerPlayer serverPlayer)
             {
-                serverPlayer.SendMessage(0,
-                    $"{Prefix} Completed with {mistakes} mistake(s) - {durability * 100:0}% durability",
-                    EnumChatType.Notification);
+                string message;
+                if (durability > 1.0f)
+                {
+                    // Bonus durability!
+                    int bonusPercent = (int)((durability - 1.0f) * 100);
+                    message = $"{Prefix} Perfect! +{bonusPercent}% bonus durability";
+                }
+                else if (durability >= 0.99f)
+                {
+                    // Vanilla durability
+                    message = $"{Prefix} Completed - standard durability";
+                }
+                else
+                {
+                    // Penalty
+                    message = $"{Prefix} Completed with {mistakes} mistake(s) - {durability * 100:0}% durability";
+                }
+                serverPlayer.SendMessage(0, message, EnumChatType.Notification);
             }
         }
 
@@ -1012,36 +1035,41 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Calculate durability percentage based on mistakes and allowance.
-        /// Scales dynamically: higher allowance = smaller penalty per mistake.
+        /// Calculate durability multiplier based on mistakes and allowance.
+        /// Uses a GRADUATED CURVE with BONUSES:
         /// 
-        /// Examples with different MistakeAllowance settings:
-        /// - Allowance 1: 0 mistakes = 100%, 1 = 50%, then stone breaks
-        /// - Allowance 3: 0 = 100%, 1 = 75%, 2 = 50%, 3 = 25%
-        /// - Allowance 10: Linear 9% per mistake, minimum 10%
+        /// - 0 mistakes: Maximum bonus (e.g., 1.25 for +25%)
+        /// - "Breakeven" point (~40% of allowance): 100% vanilla durability
+        /// - Max mistakes (=allowance): Minimum durability
+        /// 
+        /// Examples (with default 25% bonus):
+        /// - Allowance 2: 0=125%, 1=100%, 2=50%
+        /// - Allowance 5: 0=125%, 1=115%, 2=100%, 3=75%, 4=50%, 5=25%
+        /// - Allowance 10: 0=125%, 1-3=bonus zone, 4=~100%, 5-10=penalty zone down to 10%
         /// 
         /// Minimum durability scales with allowance:
-        /// - Low allowance (1-2): min 40-50% (still usable tool)
+        /// - Low allowance (1-2): min 40-50%
         /// - Medium allowance (3-5): min 20-25%
         /// - High allowance (6+): min 10%
         /// </summary>
         public static float GetDurabilityMultiplier(int mistakes, int allowance = -1)
         {
+            var config = PrecisionKnappingModSystem.Config;
+            
             // Get allowance from config if not provided
             if (allowance < 0)
             {
-                allowance = PrecisionKnappingModSystem.Config?.MistakeAllowance ?? 1;
+                allowance = config?.MistakeAllowance ?? 1;
             }
-            
-            // No mistakes = full durability
-            if (mistakes <= 0) return 1.0f;
             
             // Ensure allowance is at least 1
             allowance = Math.Max(1, allowance);
             
+            // Get bonus amount from config (default 25%)
+            float bonusAmount = config?.PerfectKnappingBonus ?? 0.25f;
+            float maxMultiplier = 1.0f + bonusAmount;  // e.g., 1.25 for 25% bonus
+            
             // Calculate minimum durability based on allowance
-            // Low allowance = higher minimum (mistakes are costly but tool still usable)
-            // High allowance = lower minimum (many small penalties)
             float minDurability;
             if (allowance <= 1)
                 minDurability = 0.50f;  // Allowance 1: min 50%
@@ -1054,16 +1082,60 @@ namespace precisionknapping
             else
                 minDurability = 0.10f;  // Allowance 6+: min 10%
             
-            // Calculate penalty per mistake
-            // Total durability loss = (1.0 - minDurability) spread across all allowance
-            float totalLoss = 1.0f - minDurability;
-            float penaltyPerMistake = totalLoss / allowance;
+            // SMART GRADUATED CURVE:
+            // - breakeven = where durability = 100% (vanilla)
+            // - For low allowance: breakeven at 1 mistake (halfway point)
+            // - For high allowance: breakeven at ~40% of allowance
+            //
+            // The curve goes: maxMultiplier (0 mistakes) -> 1.0 (breakeven) -> minDurability (max mistakes)
             
-            // Calculate final durability
-            float durability = 1.0f - (mistakes * penaltyPerMistake);
+            float breakeven;
+            if (allowance <= 2)
+            {
+                // Low allowance: breakeven at 1 mistake
+                // 0=bonus, 1=vanilla, 2=min
+                breakeven = 1.0f;
+            }
+            else
+            {
+                // Higher allowance: breakeven at ~40% of allowance
+                // This gives room for both bonus and penalty zones
+                breakeven = (float)Math.Round(allowance * 0.4f);
+                breakeven = Math.Max(1.0f, breakeven);  // At least 1
+            }
             
-            // Clamp to minimum
-            return Math.Max(minDurability, durability);
+            float durability;
+            
+            if (mistakes <= 0)
+            {
+                // Perfect knapping: maximum bonus
+                durability = maxMultiplier;
+            }
+            else if (mistakes < breakeven)
+            {
+                // BONUS ZONE: between max bonus and vanilla (linear interpolation)
+                // 0 mistakes = maxMultiplier, breakeven mistakes = 1.0
+                float t = (float)mistakes / breakeven;
+                durability = maxMultiplier - (maxMultiplier - 1.0f) * t;
+            }
+            else if (mistakes == (int)breakeven)
+            {
+                // Exactly at breakeven: vanilla durability
+                durability = 1.0f;
+            }
+            else
+            {
+                // PENALTY ZONE: between vanilla and minimum (linear interpolation)
+                // breakeven = 1.0, allowance = minDurability
+                float penaltyRange = allowance - breakeven;
+                if (penaltyRange <= 0) penaltyRange = 1;
+                float mistakesIntoPenalty = mistakes - breakeven;
+                float t = mistakesIntoPenalty / penaltyRange;
+                durability = 1.0f - (1.0f - minDurability) * t;
+            }
+            
+            // Clamp to valid range
+            return Math.Max(minDurability, Math.Min(maxMultiplier, durability));
         }
 
         /// <summary>
@@ -1644,14 +1716,19 @@ namespace precisionknapping
                     }
                 }
 
-                // Only intercept if waste is removed AND we have missing protected voxels
-                // Otherwise let vanilla handle it (might not be complete yet, or perfect completion)
-                if (!allWasteRemoved || !hasMissingProtected)
+                // Intercept if:
+                // 1. Waste is removed AND protected voxels missing (mistakes with penalties)
+                // 2. OR waste is removed AND no mistakes AND bonus is enabled (perfect completion with bonus)
+                var config = PrecisionKnappingModSystem.Config;
+                bool bonusEnabled = config?.PerfectKnappingBonus > 0f && config?.AdvancedMode == true;
+                bool shouldIntercept = allWasteRemoved && (hasMissingProtected || (bonusEnabled && mistakes == 0));
+                
+                if (!shouldIntercept)
                 {
                     return true; // Let vanilla handle
                 }
 
-                // Recipe is effectively complete with mistakes! Give item with penalties
+                // Recipe is complete! Handle with bonuses or penalties
 
                 // Get output item using reflection helper
                 ItemStack resolvedStack = KnappingReflectionHelper.GetRecipeOutput(selectedRecipe, entity.Api.World);
@@ -1662,9 +1739,8 @@ namespace precisionknapping
                 // Clone the output stack
                 ItemStack outStack = resolvedStack.Clone();
                 string itemCode = outStack.Collectible?.Code?.ToString() ?? "";
-                var config = PrecisionKnappingModSystem.Config;
 
-                // Apply penalty based on item type
+                // Apply durability scaling based on item type (Advanced Mode handles both bonuses and penalties)
                 if (AdvancedKnappingHelper.IsToolHead(itemCode) && config?.AdvancedMode == true)
                 {
                     // Tool heads in Advanced Mode: store durability RATIO as custom attribute
@@ -1684,14 +1760,27 @@ namespace precisionknapping
                     
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
-                else if (!AdvancedKnappingHelper.IsToolHead(itemCode))
+                else if (!AdvancedKnappingHelper.IsToolHead(itemCode) && config?.AdvancedMode == true)
                 {
-                    // Stackable items (arrowheads): reduce quantity
+                    // Stackable items (arrowheads) in Advanced Mode: adjust quantity
                     int originalQty = outStack.StackSize;
-                    int reducedQty = Math.Max(1, originalQty - mistakes);
-                    outStack.StackSize = reducedQty;
+                    int bonusQty = mistakes == 0 && config?.PerfectKnappingBonus > 0 ? 1 : 0; // +1 for perfect
+                    int penaltyQty = mistakes;
+                    int finalQty = Math.Max(1, originalQty + bonusQty - penaltyQty);
+                    outStack.StackSize = finalQty;
                     
-                    KnappingMessageHelper.NotifyCompletionQuantity(byPlayer, mistakes, reducedQty, originalQty);
+                    if (finalQty != originalQty)
+                    {
+                        if (finalQty > originalQty)
+                        {
+                            if (byPlayer is IServerPlayer sp)
+                                sp.SendMessage(0, $"[Precision Knapping] Perfect! Bonus: {finalQty}/{originalQty}", EnumChatType.Notification);
+                        }
+                        else
+                        {
+                            KnappingMessageHelper.NotifyCompletionQuantity(byPlayer, mistakes, finalQty, originalQty);
+                        }
+                    }
                 }
 
                 // Give item to player
@@ -1819,7 +1908,8 @@ namespace precisionknapping
                     
                     float ratio = slot.Itemstack.Attributes.GetFloat(DURABILITY_RATIO_KEY, -1f);
                     
-                    if (ratio > 0f && ratio < 1f)
+                    // Accept any valid ratio that's not exactly 1.0 (both penalties < 1 and bonuses > 1)
+                    if (ratio > 0f && Math.Abs(ratio - 1.0f) > 0.001f)
                     {
                         foundRatio = ratio;
                         break;
