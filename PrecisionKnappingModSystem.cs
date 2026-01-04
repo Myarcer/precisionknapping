@@ -12,7 +12,6 @@ namespace precisionknapping
     /// Precision Knapping mod - Harmony patching approach
     ///
     /// ARCHITECTURE: Uses Harmony patches to intercept BlockEntityKnappingSurface.OnUseOver()
-    /// NOTE: JSON patch files in assets/patches/ are OBSOLETE from earlier behavior-based attempt
     ///
     /// MODES:
     /// - Default Mode: First protected voxel click breaks stone (strict)
@@ -25,7 +24,6 @@ namespace precisionknapping
     ///
     /// FILE STRUCTURE:
     /// - src/Core/PrecisionKnappingConfig.cs      - Configuration class
-    /// - src/Core/RecipePatternManager.cs         - Recipe loading
     /// - src/Helpers/KnappingReflectionHelper.cs  - Vanilla reflection access
     /// - src/Helpers/KnappingSoundHelper.cs       - Sound feedback
     /// - src/Helpers/KnappingMessageHelper.cs     - Player messages
@@ -39,13 +37,11 @@ namespace precisionknapping
     /// </summary>
     public class PrecisionKnappingModSystem : ModSystem
     {
-        private RecipePatternManager patternManager;
         private static PrecisionKnappingModSystem instance;
         private Harmony harmony;
         private static PrecisionKnappingConfig config;
         private static ICoreServerAPI serverApi;
         private static ChargeStateTracker chargeTracker;
-        private ICoreAPI api;
 
         public static PrecisionKnappingConfig Config => config;
         public static ICoreServerAPI ServerApi => serverApi;
@@ -54,7 +50,6 @@ namespace precisionknapping
         {
             base.Start(api);
             instance = this;
-            this.api = api;
 
             // Load configuration
             try
@@ -73,13 +68,7 @@ namespace precisionknapping
                 config = new PrecisionKnappingConfig();
             }
 
-            // Initialize pattern manager
-            patternManager = new RecipePatternManager();
-
-            // Phase 1: API Inspection - Discover BlockEntityKnappingSurface methods (for debugging)
-            InspectKnappingSurfaceAPI(api);
-
-            // Phase 2: Apply Harmony patches
+            // Apply Harmony patches
             try
             {
                 harmony = new Harmony("com.precisionknapping.mod");
@@ -98,34 +87,10 @@ namespace precisionknapping
             base.Dispose();
         }
 
-        /// <summary>
-        /// Phase 1: Initialize reflection helpers (API inspection disabled for release)
-        /// </summary>
-        private void InspectKnappingSurfaceAPI(ICoreAPI api)
-        {
-            // API inspection disabled - development/debugging only
-        }
-
-        /// <summary>
-        /// Block class inspection (disabled for release)
-        /// </summary>
-        private void InspectKnappingBlockClass(ICoreAPI api)
-        {
-            // Block inspection disabled - development/debugging only
-        }
-
-        public override void AssetsLoaded(ICoreAPI api)
-        {
-            base.AssetsLoaded(api);
-        }
-
         public override void StartServerSide(ICoreServerAPI api)
         {
             base.StartServerSide(api);
             serverApi = api;
-
-            // Load all knapping recipes after server is fully initialized
-            patternManager.LoadAllKnappingRecipes(api);
 
             // Register network channel for RealisticStrikes
             var channel = api.Network.RegisterChannel("precisionknapping")
@@ -390,11 +355,6 @@ namespace precisionknapping
             {
                 chargeTracker = new ChargeStateTracker(api);
             }
-        }
-
-        public static RecipePatternManager GetPatternManager()
-        {
-            return instance?.patternManager;
         }
     }
 }
