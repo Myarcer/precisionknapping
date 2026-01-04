@@ -1,19 +1,11 @@
-v1.1.0 Changelog
-New: Configuration System
+**New Config Option: `EnableDurabilityScaling`**
+- Durability bonuses/penalties now work in BOTH Default and Advanced modes
+- Previously, durability scaling was locked behind Advanced Mode
+- New toggle allows players to get precision rewards without the hardcore fracture mechanics
 
-Added precisionknapping.json config file
-New: Mistake Tolerance
-
-MistakeAllowance setting - configurable mistakes before stone breaks
-New: Advanced Mode (opt-in via AdvancedMode: true)
-
-Edge enforcement: must work from edges inward
-Realistic fracture cone physics when clicking interior voxels
-Durability scaling: mistakes reduce tool durability
-New: Fracture Physics Settings (Advanced Mode)
-
-FractureConeAngle, FractureSpreadRate, FractureDecay, FractureBaseProbability
-Fixes
-
-Virtual edge detection for recipe holes
-Modded knapping recipes (maceheads, etc.) now work
+**Config:**
+```json
+{
+  "EnableDurabilityScaling": true  // true = bonuses/penalties active, false = always vanilla 100%
+}
+```ic

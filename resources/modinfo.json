@@ -5,8 +5,8 @@
   "authors": [
     "Nyarc"
   ],
-  "description": "Adds precision mechanics to knapping. Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, mistake tolerance with durability scaling, and optional charged swings.",
-  "version": "1.1.0",
+  "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties. RealisticStrikes mode: hold-to-charge, release-to-strike mechanics.",
+  "version": "1.3.0",
   "dependencies": {
     "game": "1.21.0"
   },

@@ -27,6 +27,10 @@
       <HintPath>lib\VintagestoryAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="protobuf-net">
+      <HintPath>lib\protobuf-net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
@@ -60,11 +64,11 @@
     <!-- Copy assets -->
     <Copy SourceFiles="@(AssetFiles)" DestinationFiles="@(AssetFiles->'.modpackage\%(RecursiveDir)%(Filename)%(Extension)')" />
 
-    <ZipDirectory SourceDirectory=".modpackage" DestinationFile="Releases\precisionknapping_v1.1.0.zip" Overwrite="true" />
+    <ZipDirectory SourceDirectory=".modpackage" DestinationFile="Releases\precisionknapping_v1.3.0.zip" Overwrite="true" />
 
     <RemoveDir Directories=".modpackage" />
 
     <!-- Deploy to VS mods folder -->
-    <Copy SourceFiles="Releases\precisionknapping_v1.1.0.zip" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
+    <Copy SourceFiles="Releases\precisionknapping_v1.3.0.zip" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
   </Target>
 </Project>

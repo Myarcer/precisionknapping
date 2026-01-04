@@ -1,5 +1,99 @@
 # Precision Knapping - Changelog
 
+## v1.3.0 (January 2, 2026)
+
+### New Feature: Realistic Strikes 🎯
+
+**Hold-to-Charge, Release-to-Strike Mechanics**
+- New optional mode: `RealisticStrikes: true` in config
+- Hold left-click to charge your strike (visual charging period)
+- Release to execute the strike
+- Looking away cancels the charge
+- Quick clicks (below minimum charge time) do nothing
+
+**How it works:**
+- All voxel removal now goes through the charged strike system
+- Vanilla instant-clicking is completely bypassed
+- Works with BOTH Default and Advanced modes:
+  - **RealisticStrikes + Default**: Must charge strikes, mistake tolerance
+  - **RealisticStrikes + Advanced**: Must charge strikes, edge enforcement + fractures
+
+**New Config Options:**
+```json
+{
+  "RealisticStrikes": false,     // Enable hold-to-charge mechanics
+  "MinChargeTimeMs": 250,        // Minimum hold time before strike executes
+  "FullChargeTimeMs": 800        // Time to reach full charge
+}
+```
+
+**Technical:**
+- Uses client-side mouse polling for charge tracking
+- Network packet synchronization for strike execution
+- No race conditions - vanilla is unconditionally blocked when enabled
+
+---
+
+## v1.2.1 (January 1, 2025)
+
+### Feature: Uncoupled Durability Scaling
+
+**New Config Option: `EnableDurabilityScaling`**
+- Durability bonuses/penalties now work in BOTH Default and Advanced modes
+- Previously, durability scaling was locked behind Advanced Mode
+- New toggle allows players to get precision rewards without the hardcore fracture mechanics
+
+**Config:**
+```json
+{
+  "EnableDurabilityScaling": true  // true = bonuses/penalties active, false = always vanilla 100%
+}
+```
+
+**What this means:**
+- Default Mode + Scaling ON: Mistakes count toward breaking, perfect knapping gives bonus
+- Default Mode + Scaling OFF: Vanilla behavior (no bonuses or penalties)
+- Advanced Mode + Scaling ON: Full mechanics (fractures + durability curve)
+- Advanced Mode + Scaling OFF: Fracture mechanics only, no quality impact
+
+---
+
+## v1.2.0 (December 28, 2024)
+
+### New Feature: Precision Bonuses 🎯
+
+**Graduated Durability/Quantity System**
+- Perfect knapping (0 mistakes) now gives **+25% bonus** durability!
+- Smart curve: 0 mistakes = max bonus, ~40% of allowance = vanilla, max mistakes = minimum
+- Works for both tool heads AND stackables (arrowheads, fishing hooks)
+
+**Examples (with default 25% bonus):**
+| Mistakes | Allowance 2 | Allowance 5 | Allowance 10 |
+|----------|-------------|-------------|--------------|
+| 0 | **125%** | **125%** | **125%** |
+| 1 | 100% | 115% | 119% |
+| 2 | 50% | 100% | 112% |
+| 3 | - | 75% | 106% |
+| 4 | - | 50% | **100%** |
+| max | - | 25% | 10% |
+
+**Stackable Bonus:**
+- Quantity uses same multiplier with rounding
+- 4 items × 125% = 5 items, 4 items × 113% = 5 items (rounds up)
+
+### Config Addition
+```json
+{
+  "PerfectKnappingBonus": 0.25  // +25% for 0 mistakes, set to 0 to disable
+}
+```
+
+### Bug Fixes
+- Fixed crafting transfer not applying bonus durability > 100%
+- Fixed stackables using old penalty logic instead of graduated curve
+
+---
+
 ## v1.1.0 (December 18, 2024)
 
 ### Major Features
