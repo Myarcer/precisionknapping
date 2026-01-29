@@ -45,11 +45,14 @@ namespace precisionknapping
 
         public static PrecisionKnappingConfig Config => config;
         public static ICoreServerAPI ServerApi => serverApi;
+        public static PrecisionKnappingModSystem Instance => instance;
+        public ICoreAPI Api { get; private set; }
 
         public override void Start(ICoreAPI api)
         {
             base.Start(api);
             instance = this;
+            Api = api;
 
             // Load configuration
             try

@@ -1,4 +1,5 @@
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using System;
@@ -30,11 +31,13 @@ namespace precisionknapping
     /// <summary>
     /// Client-side tracker for RealisticStrikes mode.
     /// Polls mouse button state and sends ChargeReleasePacket on mouse release.
+    /// Integrates with ChargeSoundManager and KnappingAnimationManager for feedback.
     /// </summary>
     public class ChargeStateTracker
     {
         private readonly ICoreClientAPI capi;
         private IClientNetworkChannel channel;
+        private ChargeSoundManager soundManager;
         
         private bool wasMouseDown = false;
         private long chargeStartTime = 0;
@@ -49,6 +52,9 @@ namespace precisionknapping
         public ChargeStateTracker(ICoreClientAPI api)
         {
             capi = api;
+            
+            // Initialize sound manager
+            soundManager = new ChargeSoundManager(api);
             
             // Register network channel on client
             channel = api.Network.RegisterChannel("precisionknapping")
@@ -75,25 +81,31 @@ namespace precisionknapping
             // Mouse down on knapping surface → start tracking
             if (isMouseDown && !wasMouseDown && isLookingAtKnapping)
             {
-                StartTracking(blockSel);
+                StartTracking(blockSel, player.Entity as EntityPlayer);
+            }
+            
+            // Update charge feedback while charging
+            if (isMouseDown && isTracking)
+            {
+                UpdateCharging();
             }
             
             // Mouse up while we have a target → send strike packet
             if (!isMouseDown && wasMouseDown && isTracking)
             {
-                ReleaseStrike();
+                ReleaseStrike(player.Entity as EntityPlayer);
             }
             
             // Look away while charging → cancel (just clear local state)
             if (isMouseDown && isTracking && !isLookingAtKnapping)
             {
-                CancelTracking();
+                CancelTracking(player.Entity as EntityPlayer);
             }
             
             wasMouseDown = isMouseDown;
         }
         
-        private void StartTracking(BlockSelection sel)
+        private void StartTracking(BlockSelection sel, EntityPlayer player)
         {
             targetBlockPos = sel.Position.Copy();
             
@@ -108,20 +120,30 @@ namespace precisionknapping
             
             chargeStartTime = capi.World.ElapsedMilliseconds;
             isTracking = true;
+            
+            // Start charge animation and sound
+            KnappingAnimationManager.StartChargeAnimation(player);
+            soundManager.StartChargeSound(targetBlockPos);
         }
         
-        private void ReleaseStrike()
+        private void UpdateCharging()
+        {
+            float chargeLevel = CalculateChargeLevel();
+            soundManager.UpdateChargeTick(chargeLevel, targetBlockPos);
+        }
+        
+        private void ReleaseStrike(EntityPlayer player)
         {
             if (!isTracking) return;
             
             // Get CURRENT block selection and voxel position (not where we started)
-            var player = capi.World?.Player;
-            var blockSel = player?.CurrentBlockSelection;
+            var localPlayer = capi.World?.Player;
+            var blockSel = localPlayer?.CurrentBlockSelection;
             
             // Must still be looking at a knapping surface
             if (!IsKnappingSurface(blockSel))
             {
-                ClearTracking();
+                CancelTracking(player);
                 return;
             }
             
@@ -132,6 +154,11 @@ namespace precisionknapping
             voxelZ = Math.Clamp(voxelZ, 0, 15);
             
             float chargeLevel = CalculateChargeLevel();
+            
+            // Stop charge sound, play strike effects
+            soundManager.StopChargeSound();
+            soundManager.PlayStrikeSound(blockSel.Position, chargeLevel);
+            KnappingAnimationManager.PlayStrikeAnimation(player, chargeLevel);
             
             // Send packet to server with CURRENT position
             channel.SendPacket(new ChargeReleasePacket
@@ -147,9 +174,12 @@ namespace precisionknapping
             ClearTracking();
         }
         
-        private void CancelTracking()
+        private void CancelTracking(EntityPlayer player)
         {
-            // Just clear state - no packet needed since server blocks vanilla anyway
+            // Stop sounds and animation
+            soundManager.StopChargeSound();
+            KnappingAnimationManager.StopChargeAnimation(player);
+            
             ClearTracking();
         }
         
@@ -175,7 +205,17 @@ namespace precisionknapping
             var entity = capi.World.BlockAccessor.GetBlockEntity(sel.Position);
             return entity != null && entity.GetType().Name == "BlockEntityKnappingSurface";
         }
+        
+        /// <summary>
+        /// Clean up resources on unload.
+        /// </summary>
+        public void Dispose()
+        {
+            soundManager?.Dispose();
+            KnappingAnimationManager.Reset();
+        }
     }
 
     #endregion
 }
+

@@ -103,5 +103,32 @@ namespace precisionknapping
         /// Default: 800 (less than a second for full charge)
         /// </summary>
         public int FullChargeTimeMs { get; set; } = 800;
+
+        /// <summary>
+        /// Enable charge animation (arm pulling back during charge).
+        /// Requires custom animation or uses vanilla fallback.
+        /// Default: true
+        /// </summary>
+        public bool EnableChargeAnimation { get; set; } = true;
+
+        /// <summary>
+        /// Enable charge sounds (pitch-scaling charge sound, swoosh on release).
+        /// Default: true
+        /// </summary>
+        public bool EnableChargeSounds { get; set; } = true;
+
+        /// <summary>
+        /// Minimum pitch for charge sound (at 0% charge).
+        /// Range: 0.5 - 2.0
+        /// Default: 0.8
+        /// </summary>
+        public float ChargeSoundMinPitch { get; set; } = 0.8f;
+
+        /// <summary>
+        /// Maximum pitch for charge sound (at 100% charge).
+        /// Range: 0.5 - 2.0
+        /// Default: 1.5
+        /// </summary>
+        public float ChargeSoundMaxPitch { get; set; } = 1.5f;
     }
 }
