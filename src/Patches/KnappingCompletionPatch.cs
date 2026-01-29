@@ -110,27 +110,28 @@ namespace precisionknapping
                 ItemStack outStack = resolvedStack.Clone();
                 string itemCode = outStack.Collectible?.Code?.ToString() ?? "";
 
-                // Apply durability scaling based on item type (applies in both modes when EnableDurabilityScaling is on)
-                if (AdvancedKnappingHelper.IsToolHead(itemCode) && scalingEnabled)
+                // Apply durability scaling based on whether item has durability (not pattern matching)
+                // This catches whetstones, modded tools, and any other durability items automatically
+                int maxDur = outStack.Collectible.GetMaxDurability(outStack);
+                bool hasDurability = maxDur > 0;
+
+                if (hasDurability && scalingEnabled)
                 {
-                    // Tool heads in Advanced Mode: store durability RATIO as custom attribute
-                    // This ratio will be transferred to the finished tool during crafting
+                    // Items with durability: apply durability scaling
+                    // For tool heads, also store ratio for crafting transfer
                     float durabilityMult = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
 
-                    // Store our custom attribute that survives crafting transfer
+                    // Store custom attribute for tool head -> tool crafting transfer
+                    // Harmless on non-tool-head items (whetstones use durability directly)
                     outStack.Attributes.SetFloat("precisionknapping:durabilityRatio", durabilityMult);
 
-                    // Also set the tool head's own durability for display purposes
-                    int maxDur = outStack.Collectible.GetMaxDurability(outStack);
-                    if (maxDur > 0)
-                    {
-                        int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
-                        outStack.Attributes.SetInt("durability", newDur);
-                    }
+                    // Set the item's own durability
+                    int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
+                    outStack.Attributes.SetInt("durability", newDur);
 
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
-                else if (!AdvancedKnappingHelper.IsToolHead(itemCode) && scalingEnabled)
+                else if (!hasDurability && scalingEnabled)
                 {
                     // Stackable items (arrowheads, fishing hooks) in Advanced Mode:
                     // Apply the same durability multiplier to quantity with rounding
