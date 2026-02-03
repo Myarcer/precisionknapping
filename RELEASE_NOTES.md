@@ -19,7 +19,7 @@ This turns knapping from a simple "follow the pattern" task into a precision exe
 ### Configuration
 Config file: `VintagestoryData/ModConfig/precisionknapping.json`
 
-See the [README](https://github.com/VRNyarc/precisionknapping#configuration) for detailed configuration options including:
+See the [README](https://github.com/Myarcer/precisionknapping#configuration) for detailed configuration options including:
 - `AdvancedMode` - Toggle between simple and advanced mechanics
 - `MistakeAllowance` - How many mistakes before stone breaks
 - Fracture physics tuning (cone angle, spread rate, decay)
@@ -38,4 +38,4 @@ OR Manual:
 - Server-side mod (clients don't need it)
 
 ### License
-MIT License - see [LICENSE](https://github.com/VRNyarc/precisionknapping/blob/main/LICENSE)
+MIT License - see [LICENSE](https://github.com/Myarcer/precisionknapping/blob/main/LICENSE)

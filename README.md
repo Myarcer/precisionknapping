@@ -184,7 +184,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Source Code
 
-[GitHub Repository](https://github.com/VRNyarc/precisionknapping)
+[GitHub Repository](https://github.com/Myarcer/precisionknapping)
 
 ## Credits
 
