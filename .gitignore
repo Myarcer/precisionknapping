@@ -33,6 +33,10 @@ build.py
 create_icon.py
 RawIcon Big.png
 __pycache__/
+Medal_*.png
+FEATURE_*.md
+RESEARCH_*.md
+temp*.txt
 
 # Release artifacts (rebuild from source)
 Releases/
