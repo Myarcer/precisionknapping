@@ -1,36 +1,26 @@
 # Precision Knapping - Changelog
 
-## v1.3.0 (January 2, 2026)
+## v1.3.0 (February 3, 2026)
 
-### New Feature: Realistic Strikes 🎯
+### Charged Strikes Mode ⚡
 
 **Hold-to-Charge, Release-to-Strike Mechanics**
-- New optional mode: `RealisticStrikes: true` in config
-- Hold left-click to charge your strike (visual charging period)
-- Release to execute the strike
-- Looking away cancels the charge
-- Quick clicks (below minimum charge time) do nothing
+- Enable with `ChargedStrikes: true` in config
+- Hold left-click to charge, release to strike
+- Audio feedback: tick sounds increase in speed as you charge
+- Improved charge timing: 500ms minimum, 1.5s for full charge
 
-**How it works:**
-- All voxel removal now goes through the charged strike system
-- Vanilla instant-clicking is completely bypassed
-- Works with BOTH Default and Advanced modes:
-  - **RealisticStrikes + Default**: Must charge strikes, mistake tolerance
-  - **RealisticStrikes + Advanced**: Must charge strikes, edge enforcement + fractures
-
-**New Config Options:**
+**Config:**
 ```json
 {
-  "RealisticStrikes": false,     // Enable hold-to-charge mechanics
-  "MinChargeTimeMs": 250,        // Minimum hold time before strike executes
-  "FullChargeTimeMs": 800        // Time to reach full charge
+  "ChargedStrikes": false,     // Enable hold-to-charge mechanics
+  "MinChargeTimeMs": 500,      // Minimum hold time (0.5s)
+  "FullChargeTimeMs": 1500,    // Full charge time (1.5s)  
+  "EnableChargeSounds": true   // Audio feedback during charge
 }
 ```
 
-**Technical:**
-- Uses client-side mouse polling for charge tracking
-- Network packet synchronization for strike execution
-- No race conditions - vanilla is unconditionally blocked when enabled
+> ⚠️ **Note**: Charge indicator overlay is not functional yet - coming in a future update.
 
 ---
 

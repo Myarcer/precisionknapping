@@ -24,10 +24,30 @@ namespace precisionknapping
                 if (targetType != null) break;
             }
 
-            if (targetType == null) return null;
+            if (targetType == null)
+            {
+                Console.WriteLine("[COMPLETION-PATCH] ERROR: Could not find BlockEntityKnappingSurface type!");
+                return null;
+            }
 
             var method = targetType.GetMethod("CheckIfFinished",
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+
+            if (method == null)
+            {
+                Console.WriteLine("[COMPLETION-PATCH] ERROR: Could not find CheckIfFinished method!");
+                // List available methods for debugging
+                Console.WriteLine("[COMPLETION-PATCH] Available methods:");
+                foreach (var m in targetType.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (m.Name.Contains("Check") || m.Name.Contains("Finish") || m.Name.Contains("Complete"))
+                        Console.WriteLine($"  - {m.Name}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[COMPLETION-PATCH] Found CheckIfFinished: {method}");
+            }
 
             return method;
         }
@@ -45,7 +65,10 @@ namespace precisionknapping
                 var entity = __instance as BlockEntity;
                 if (entity == null || entity.Api.Side != EnumAppSide.Server) return true;
 
+                entity.Api.Logger.Debug("[COMPLETION-PATCH] Prefix called!");
+
                 int mistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Mistakes: {mistakes}");
 
                 // Note: Don't return early for 0 mistakes - we need to check for bonus application
 
@@ -90,13 +113,19 @@ namespace precisionknapping
                 // 2. OR waste is removed AND no mistakes AND bonus is enabled (perfect completion with bonus)
                 var config = PrecisionKnappingModSystem.Config;
                 bool scalingEnabled = config?.EnableDurabilityScaling ?? true;
-                bool bonusEnabled = config?.PerfectKnappingBonus > 0f && scalingEnabled;
+                float bonusAmount = config?.PerfectKnappingBonus ?? 0.25f;
+                bool bonusEnabled = bonusAmount > 0f && scalingEnabled;
                 bool shouldIntercept = allWasteRemoved && (hasMissingProtected || (bonusEnabled && mistakes == 0));
+
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] allWasteRemoved={allWasteRemoved}, hasMissingProtected={hasMissingProtected}, scalingEnabled={scalingEnabled}, bonusEnabled={bonusEnabled}, bonusAmount={bonusAmount}, mistakes={mistakes}, shouldIntercept={shouldIntercept}");
 
                 if (!shouldIntercept)
                 {
+                    entity.Api.Logger.Debug("[COMPLETION-PATCH] Not intercepting - letting vanilla handle");
                     return true; // Let vanilla handle
                 }
+
+                entity.Api.Logger.Debug("[COMPLETION-PATCH] INTERCEPTING completion!");
 
                 // Recipe is complete! Handle with bonuses or penalties
 
@@ -104,34 +133,53 @@ namespace precisionknapping
                 ItemStack resolvedStack = KnappingReflectionHelper.GetRecipeOutput(selectedRecipe, entity.Api.World);
 
                 if (resolvedStack == null)
+                {
+                    entity.Api.Logger.Debug("[COMPLETION-PATCH] resolvedStack is NULL - falling back to vanilla");
                     return true;
+                }
 
                 // Clone the output stack
                 ItemStack outStack = resolvedStack.Clone();
                 string itemCode = outStack.Collectible?.Code?.ToString() ?? "";
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Output item: {itemCode}");
 
-                // Apply durability scaling based on whether item has durability (not pattern matching)
-                // This catches whetstones, modded tools, and any other durability items automatically
+                // Check both patterns: tool heads (no durability, but transfer ratio) AND items with durability (whetstones)
                 int maxDur = outStack.Collectible.GetMaxDurability(outStack);
                 bool hasDurability = maxDur > 0;
+                bool isToolHead = AdvancedKnappingHelper.IsToolHead(itemCode);
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] maxDur={maxDur}, hasDurability={hasDurability}, isToolHead={isToolHead}");
 
-                if (hasDurability && scalingEnabled)
+                if (isToolHead && scalingEnabled)
                 {
-                    // Items with durability: apply durability scaling
-                    // For tool heads, also store ratio for crafting transfer
+                    // Tool heads: store durability ratio for crafting transfer to finished tool
                     float durabilityMult = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Tool head - storing ratio: {durabilityMult}");
 
-                    // Store custom attribute for tool head -> tool crafting transfer
-                    // Harmless on non-tool-head items (whetstones use durability directly)
+                    // Store ratio attribute that transfers to finished tool during crafting
                     outStack.Attributes.SetFloat("precisionknapping:durabilityRatio", durabilityMult);
 
-                    // Set the item's own durability
-                    int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
-                    outStack.Attributes.SetInt("durability", newDur);
+                    // If tool head itself has durability, also set it directly
+                    if (maxDur > 0)
+                    {
+                        int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
+                        outStack.Attributes.SetInt("durability", newDur);
+                    }
 
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
-                else if (!hasDurability && scalingEnabled)
+                else if (hasDurability && scalingEnabled)
+                {
+                    // Items with durability but not tool heads (whetstones, etc): apply durability directly
+                    float durabilityMult = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Durability item - applying: mult={durabilityMult}");
+
+                    int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
+                    outStack.Attributes.SetInt("durability", newDur);
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Set durability: {newDur}/{maxDur}");
+
+                    KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
+                }
+                else if (!isToolHead && !hasDurability && scalingEnabled)
                 {
                     // Stackable items (arrowheads, fishing hooks) in Advanced Mode:
                     // Apply the same durability multiplier to quantity with rounding
@@ -164,9 +212,15 @@ namespace precisionknapping
                 }
 
                 // Give item to player
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Giving item to player...");
                 if (!byPlayer.InventoryManager.TryGiveItemstack(outStack))
                 {
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Inventory full, spawning entity");
                     entity.Api.World.SpawnItemEntity(outStack, entity.Pos.ToVec3d().Add(0.5, 0.5, 0.5));
+                }
+                else
+                {
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Item given to inventory");
                 }
 
                 // Clear mistake count
@@ -174,6 +228,7 @@ namespace precisionknapping
 
                 // Remove the knapping surface block
                 entity.Api.World.BlockAccessor.SetBlock(0, entity.Pos);
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Block removed, completion handled!");
 
                 // Play completion sound
                 KnappingSoundHelper.PlayChipSound(entity.Api, entity.Pos, byPlayer);
@@ -182,6 +237,13 @@ namespace precisionknapping
             }
             catch (Exception ex)
             {
+                // Use API logger if available, otherwise Console
+                try
+                {
+                    var entity = __instance as BlockEntity;
+                    entity?.Api?.Logger?.Error($"[COMPLETION-PATCH] Error: {ex.Message}\n{ex.StackTrace}");
+                }
+                catch { }
                 Console.WriteLine($"[KnappingCompletionPatch] Error: {ex.Message}");
                 Console.WriteLine($"[KnappingCompletionPatch] Stack: {ex.StackTrace}");
                 return true;

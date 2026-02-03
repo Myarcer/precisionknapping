@@ -67,10 +67,10 @@ namespace precisionknapping
 
                 var config = PrecisionKnappingModSystem.Config;
 
-                // ========== REALISTIC STRIKES MODE ==========
+                // ========== CHARGED STRIKES MODE ==========
                 // When enabled, ALWAYS block vanilla OnUseOver
                 // All strikes are handled via ChargeReleasePacket
-                if (config?.RealisticStrikes ?? false)
+                if (config?.ChargedStrikes ?? false)
                 {
                     return false; // Block vanilla completely
                 }

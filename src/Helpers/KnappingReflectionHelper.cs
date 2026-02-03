@@ -121,7 +121,7 @@ namespace precisionknapping
 
         /// <summary>
         /// Calls the vanilla CheckIfFinished method to trigger recipe completion check.
-        /// This is needed in RealisticStrikes mode since we bypass vanilla OnUseOver.
+        /// This is needed in ChargedStrikes mode since we bypass vanilla OnUseOver.
         /// </summary>
         public static void CallCheckIfFinished(object entity, IPlayer player)
         {

@@ -28,14 +28,14 @@ namespace precisionknapping
             var logger = PrecisionKnappingModSystem.Instance?.Api?.Logger;
             var config = PrecisionKnappingModSystem.Config;
             
-            logger?.Debug($"[PrecisionKnapping] StartChargeAnimation called. Player={player != null}, EnableAnim={config?.EnableChargeAnimation}, IsCharging={_isCharging}");
+            logger?.Debug($"[PrecisionKnapping] StartChargeAnimation called. Player={player != null}, ChargedStrikes={config?.ChargedStrikes}, IsCharging={_isCharging}");
             
             if (player == null) 
             {
                 logger?.Debug("[PrecisionKnapping] Player is null, skipping animation");
                 return;
             }
-            if (config == null || !config.EnableChargeAnimation) 
+            if (config == null || !config.ChargedStrikes) 
             {
                 logger?.Debug("[PrecisionKnapping] Animation disabled, skipping");
                 return;
@@ -109,7 +109,7 @@ namespace precisionknapping
         public static void PlayStrikeAnimation(EntityPlayer player, float chargeLevel)
         {
             if (player == null) return;
-            if (!PrecisionKnappingModSystem.Config.EnableChargeAnimation) return;
+            if (!PrecisionKnappingModSystem.Config.ChargedStrikes) return;
             
             try
             {

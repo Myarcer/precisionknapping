@@ -29,7 +29,7 @@ namespace precisionknapping
     #region Client Tracker
 
     /// <summary>
-    /// Client-side tracker for RealisticStrikes mode.
+    /// Client-side tracker for ChargedStrikes mode.
     /// Polls mouse button state and sends ChargeReleasePacket on mouse release.
     /// Integrates with ChargeSoundManager and KnappingAnimationManager for feedback.
     /// </summary>
@@ -63,13 +63,13 @@ namespace precisionknapping
             // Register tick listener
             api.Event.RegisterGameTickListener(OnClientTick, 20); // 20ms = 50Hz
             
-            api.Logger.Notification("[PrecisionKnapping] RealisticStrikes charge tracker initialized");
+            api.Logger.Notification("[PrecisionKnapping] ChargedStrikes charge tracker initialized");
         }
 
         private void OnClientTick(float dt)
         {
             var config = PrecisionKnappingModSystem.Config;
-            if (config == null || !config.RealisticStrikes) return;
+            if (config == null || !config.ChargedStrikes) return;
 
             var player = capi.World?.Player;
             if (player == null) return;
@@ -130,6 +130,17 @@ namespace precisionknapping
         {
             float chargeLevel = CalculateChargeLevel();
             soundManager.UpdateChargeTick(chargeLevel, targetBlockPos);
+            
+            // Strategy A: Continuously suppress vanilla hit animations every tick
+            // The game engine triggers repeated "hit" animations when left-click is held,
+            // so we must stop them continuously to prevent rapid up/down swinging
+            var player = capi.World?.Player?.Entity;
+            if (player?.AnimManager != null)
+            {
+                player.AnimManager.StopAnimation("hit");
+                player.AnimManager.StopAnimation("breakhand");
+                player.AnimManager.StopAnimation("holdhit");
+            }
         }
         
         private void ReleaseStrike(EntityPlayer player)

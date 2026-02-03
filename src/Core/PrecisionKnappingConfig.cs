@@ -80,36 +80,32 @@ namespace precisionknapping
         public float PerfectKnappingBonus { get; set; } = 0.25f;
 
         /// <summary>
-        /// Enable Realistic Strikes: hold-to-charge, release-to-strike mechanics.
+        /// Enable Charged Strikes: hold-to-charge, release-to-strike mechanics.
         /// When enabled, replaces instant-click with charge-based knapping.
+        /// Includes charge sounds (rising pitch ticks) and animation control.
         /// Works with BOTH Default and Advanced modes:
-        /// - RealisticStrikes + Default: Must charge strikes, mistake tolerance
-        /// - RealisticStrikes + Advanced: Must charge strikes, edge enforcement + fractures
+        /// - ChargedStrikes + Default: Must charge strikes, mistake tolerance
+        /// - ChargedStrikes + Advanced: Must charge strikes, edge enforcement + fractures
         /// Default: false
         /// </summary>
-        public bool RealisticStrikes { get; set; } = false;
+        public bool ChargedStrikes { get; set; } = false;
 
         /// <summary>
         /// Minimum charge time in milliseconds before strike can execute.
         /// Quick clicks (below this threshold) do nothing.
-        /// Default: 250 (quarter second minimum)
+        /// Default: 500 (half second minimum)
         /// </summary>
-        public int MinChargeTimeMs { get; set; } = 250;
+        public int MinChargeTimeMs { get; set; } = 500;
 
         /// <summary>
         /// Time in milliseconds to reach full charge.
         /// Charge level = (hold time) / (full charge time), clamped to 1.0
         /// Longer charges can affect fracture size in Advanced Mode.
-        /// Default: 800 (less than a second for full charge)
+        /// Default: 1500 (1.5 seconds for full charge)
         /// </summary>
-        public int FullChargeTimeMs { get; set; } = 800;
+        public int FullChargeTimeMs { get; set; } = 1500;
 
-        /// <summary>
-        /// Enable charge animation (arm pulling back during charge).
-        /// Requires custom animation or uses vanilla fallback.
-        /// Default: true
-        /// </summary>
-        public bool EnableChargeAnimation { get; set; } = true;
+
 
         /// <summary>
         /// Enable charge sounds (pitch-scaling charge sound, swoosh on release).

@@ -113,7 +113,7 @@ namespace precisionknapping
             try
             {
                 var config = Config;
-                if (config == null || !config.RealisticStrikes) return;
+                if (config == null || !config.ChargedStrikes) return;
 
                 // Validate charge level
                 float minChargeRatio = config.MinChargeTimeMs / (float)config.FullChargeTimeMs;
@@ -353,8 +353,8 @@ namespace precisionknapping
                 api.Logger.Notification("[PrecisionKnapping] Learn Mode overlay enabled");
             }
 
-            // Initialize RealisticStrikes charge tracker
-            if (Config?.RealisticStrikes == true)
+            // Initialize ChargedStrikes charge tracker
+            if (Config?.ChargedStrikes == true)
             {
                 chargeTracker = new ChargeStateTracker(api);
             }

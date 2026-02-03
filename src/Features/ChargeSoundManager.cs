@@ -23,11 +23,12 @@ namespace precisionknapping
         {
             capi = api;
             
-            // Charge tick: quiet tap sound that plays periodically during charge
-            _chargeTickSound = new AssetLocation("game:sounds/player/clothrustlelight");
+            // Charge tick: arcade-style tick sound that increases in frequency with charge
+            // Using the game's UI tick sound for a subtle, non-intrusive indicator
+            _chargeTickSound = new AssetLocation("game:sounds/tick");
             
-            // Strike sound: rock-on-rock impact 
-            _strikeSound = new AssetLocation("game:sounds/block/rock-hit-flint");
+            // Strike sound: actual knapping impact
+            _strikeSound = new AssetLocation("game:sounds/player/knap2");
             
             capi.Logger.Notification("[PrecisionKnapping] ChargeSoundManager initialized");
         }
