@@ -1,42 +1,16 @@
-# Visual Studio
-.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
-# Build results
-bin/
+﻿bin/
 obj/
-.release/
 .modpackage/
-*.dll
-!lib/*.dll
-*.exe
-*.pdb
-
-# VS Code
-.vscode/
-
-# Temporary files
-*.tmp
-*.temp
-
-# Logs
-*.log
-
-# Development files (not for public repo)
-obsolete_files/
+Releases/
+references/
 Research/
-RELEASE_INFO.md
+*.user
+*.suo
+Medal_*.png
+RawIcon*
+.vscode/
+temp*/
 build.py
 create_icon.py
-RawIcon Big.png
-__pycache__/
-Medal_*.png
-FEATURE_*.md
-RESEARCH_*.md
-temp*.txt
-
-# Release artifacts (rebuild from source)
-Releases/
+RELEASE_INFO.md
+RELEASE_NOTES.md

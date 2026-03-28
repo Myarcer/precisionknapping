@@ -1,4 +1,4 @@
-using Vintagestory.API.Common;
+﻿using Vintagestory.API.Common;
 using System;
 using System.Reflection;
 using HarmonyLib;
@@ -30,24 +30,31 @@ namespace precisionknapping
         private const string DURABILITY_RATIO_KEY = "precisionknapping:durabilityRatio";
 
         /// <summary>
-        /// Target CollectibleObject.OnCreatedByCrafting with explicit signature
+        /// Target CollectibleObject.OnCreatedByCrafting (1.22+ IRecipeBase signature).
         /// </summary>
         [HarmonyTargetMethod]
         static MethodBase TargetMethod()
         {
+            Type recipeBaseType = typeof(CollectibleObject).Assembly.GetType("Vintagestory.API.Common.IRecipeBase");
+            if (recipeBaseType == null)
+            {
+                Console.WriteLine("[CRAFTING-PATCH] ERROR: IRecipeBase type not found!");
+                return null;
+            }
+
             var method = typeof(CollectibleObject).GetMethod("OnCreatedByCrafting",
                 BindingFlags.Public | BindingFlags.Instance,
                 null,
-                new Type[] { typeof(ItemSlot[]), typeof(ItemSlot), typeof(GridRecipe) },
+                new Type[] { typeof(ItemSlot[]), typeof(ItemSlot), recipeBaseType },
                 null);
 
-            if (method == null)
+            if (method != null)
             {
-                Console.WriteLine("[CRAFTING-PATCH] ERROR: Could not find OnCreatedByCrafting method!");
+                Console.WriteLine("[CRAFTING-PATCH] Found OnCreatedByCrafting: " + method);
             }
             else
             {
-                Console.WriteLine("[CRAFTING-PATCH] Found OnCreatedByCrafting method: " + method);
+                Console.WriteLine("[CRAFTING-PATCH] ERROR: Could not find OnCreatedByCrafting method!");
             }
 
             return method;
@@ -60,15 +67,17 @@ namespace precisionknapping
         /// 2. An input has our specific durability ratio attribute
         /// 3. Output doesn't already have reduced durability (another mod didn't touch it)
         /// </summary>
+        /// Uses __args for version-safe parameter access (avoids name mismatch between
+        /// 1.21 "allInputslots" and 1.22 "allInputSlots" casing difference).
         [HarmonyPostfix]
-        public static void Postfix(
-            ItemSlot[] allInputslots,
-            ItemSlot outputSlot,
-            GridRecipe byRecipe,
-            CollectibleObject __instance)
+        public static void Postfix(object[] __args, CollectibleObject __instance)
         {
             try
             {
+                // __args[0] = ItemSlot[] allInputSlots, __args[1] = ItemSlot outputSlot
+                var allInputslots = __args[0] as ItemSlot[];
+                var outputSlot = __args[1] as ItemSlot;
+
                 // === GUARD CLAUSE 1: Valid output ===
                 if (outputSlot?.Itemstack == null) return;
 
@@ -94,23 +103,24 @@ namespace precisionknapping
                 // === SEARCH: Find our durability ratio in inputs ===
                 float? foundRatio = null;
 
-                foreach (var slot in allInputslots)
+                if (allInputslots != null)
                 {
-                    if (slot?.Itemstack?.Attributes == null) continue;
-
-                    float ratio = slot.Itemstack.Attributes.GetFloat(DURABILITY_RATIO_KEY, -1f);
-
-                    // Accept any valid ratio that's not exactly 1.0 (both penalties < 1 and bonuses > 1)
-                    if (ratio > 0f && Math.Abs(ratio - 1.0f) > 0.001f)
+                    foreach (var slot in allInputslots)
                     {
-                        foundRatio = ratio;
-                        break;
+                        if (slot?.Itemstack?.Attributes == null) continue;
+
+                        float ratio = slot.Itemstack.Attributes.GetFloat(DURABILITY_RATIO_KEY, -1f);
+
+                        // Accept any valid ratio that's not exactly 1.0 (both penalties < 1 and bonuses > 1)
+                        if (ratio > 0f && Math.Abs(ratio - 1.0f) > 0.001f)
+                        {
+                            foundRatio = ratio;
+                            break;
+                        }
                     }
                 }
 
                 // === APPLY: Transfer ratio to output ===
-                // Note: The ratio attribute may persist on the tool via vanilla CopyAttributesFrom.
-                // This is harmless - it's namespaced metadata that doesn't affect gameplay.
                 if (foundRatio.HasValue)
                 {
                     int newDurability = Math.Max(1, (int)(outputMaxDur * foundRatio.Value));

@@ -1,8 +1,8 @@
-# Precision Knapping - Changelog
+﻿# Precision Knapping - Changelog
 
 ## v1.3.0 (February 3, 2026)
 
-### Charged Strikes Mode ⚡
+### Charged Strikes Mode ÔÜí
 
 **Hold-to-Charge, Release-to-Strike Mechanics**
 - Enable with `ChargedStrikes: true` in config
@@ -20,7 +20,7 @@
 }
 ```
 
-> ⚠️ **Note**: Charge indicator overlay is not functional yet - coming in a future update.
+> ÔÜá´©Å **Note**: Charge indicator overlay is not functional yet - coming in a future update.
 
 ---
 
@@ -50,7 +50,7 @@
 
 ## v1.2.0 (December 28, 2024)
 
-### New Feature: Precision Bonuses 🎯
+### New Feature: Precision Bonuses ­ƒÄ»
 
 **Graduated Durability/Quantity System**
 - Perfect knapping (0 mistakes) now gives **+25% bonus** durability!
@@ -69,7 +69,7 @@
 
 **Stackable Bonus:**
 - Quantity uses same multiplier with rounding
-- 4 items × 125% = 5 items, 4 items × 113% = 5 items (rounds up)
+- 4 items ├ù 125% = 5 items, 4 items ├ù 113% = 5 items (rounds up)
 
 ### Config Addition
 ```json

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>precisionknapping</AssemblyName>
@@ -42,6 +42,15 @@
     <PackageReference Include="Lib.Harmony" Version="2.3.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Research\**" />
+    <EmbeddedResource Remove="Research\**" />
+    <None Remove="Research\**" />
+    <Compile Remove="references\**" />
+    <EmbeddedResource Remove="references\**" />
+    <None Remove="references\**" />
+  </ItemGroup>
+
   <Target Name="Package" AfterTargets="Build">
     <ItemGroup>
       <ModFiles Include="$(OutputPath)$(AssemblyName).dll" />
@@ -64,11 +73,11 @@
     <!-- Copy assets -->
     <Copy SourceFiles="@(AssetFiles)" DestinationFiles="@(AssetFiles->'.modpackage\%(RecursiveDir)%(Filename)%(Extension)')" />
 
-    <ZipDirectory SourceDirectory=".modpackage" DestinationFile="Releases\precisionknapping_v1.3.0.zip" Overwrite="true" />
+    <ZipDirectory SourceDirectory=".modpackage" DestinationFile="Releases\precisionknapping_v1.4.0-rc.1.zip" Overwrite="true" />
 
     <RemoveDir Directories=".modpackage" />
 
     <!-- Deploy to VS mods folder -->
-    <Copy SourceFiles="Releases\precisionknapping_v1.3.0.zip" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
+    <Copy SourceFiles="Releases\precisionknapping_v1.4.0-rc.1.zip" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
   </Target>
 </Project>

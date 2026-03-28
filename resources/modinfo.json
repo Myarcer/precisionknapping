@@ -5,10 +5,10 @@
   "authors": [
     "Nyarc"
   ],
-  "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties. RealisticStrikes mode: hold-to-charge, release-to-strike mechanics.",
-  "version": "1.3.0",
+  "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties.",
+  "version": "1.4.0-rc.1",
   "dependencies": {
-    "game": "1.21.0"
+    "game": "1.22.0-rc.1"
   },
   "website": "https://github.com/Myarcer/precisionknapping",
   "contributors": []

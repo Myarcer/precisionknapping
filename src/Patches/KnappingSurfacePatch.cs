@@ -1,4 +1,4 @@
-using Vintagestory.API.Common;
+﻿using Vintagestory.API.Common;
 using Vintagestory.API.Server;
 using Vintagestory.API.MathTools;
 using System;
@@ -66,15 +66,6 @@ namespace precisionknapping
                 if (entity == null) return true;
 
                 var config = PrecisionKnappingModSystem.Config;
-
-                // ========== CHARGED STRIKES MODE ==========
-                // When enabled, ALWAYS block vanilla OnUseOver
-                // All strikes are handled via ChargeReleasePacket
-                if (config?.ChargedStrikes ?? false)
-                {
-                    return false; // Block vanilla completely
-                }
-
                 bool advancedMode = config?.AdvancedMode ?? false;
 
                 // Get voxel data using reflection helper
@@ -221,6 +212,11 @@ namespace precisionknapping
                             currentVoxels[pos.X, pos.Y] = false;
                         entity.MarkDirty(true);
                         KnappingSoundHelper.PlayChipSound(entity.Api, entity.Pos, byPlayer);
+
+                        // CRITICAL: Must trigger completion check since we bypassed vanilla OnUseOver
+                        // Without this, if the pocket was the last waste, the recipe never completes
+                        KnappingReflectionHelper.CallCheckIfFinished(entity, byPlayer);
+
                         return false;
                     }
                 }
@@ -289,6 +285,10 @@ namespace precisionknapping
 
                 // Play chip sound for fracture effect
                 KnappingSoundHelper.PlayChipSound(entity.Api, entity.Pos, byPlayer);
+
+                // CRITICAL: Must trigger completion check since we bypassed vanilla OnUseOver
+                // Without this, if the fracture removed the last waste, the recipe never completes
+                KnappingReflectionHelper.CallCheckIfFinished(entity, byPlayer);
 
                 return false; // Prevent vanilla - we handled removal ourselves
             }
