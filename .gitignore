@@ -40,3 +40,8 @@ temp*.txt
 
 # Release artifacts (rebuild from source)
 Releases/
+references/
+bin/
+obj/
+.modpackage/
+Releases/

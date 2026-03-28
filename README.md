@@ -1,4 +1,4 @@
-# Precision Knapping
+﻿# Precision Knapping
 
 A Vintage Story mod that adds realistic fracture mechanics to stone knapping. Make mistakes while knapping and face consequences - from reduced tool durability to completely shattered stones.
 
@@ -19,7 +19,7 @@ A Vintage Story mod that adds realistic fracture mechanics to stone knapping. Ma
 
 ### Default Mode (`AdvancedMode: false`)
 - Simple mistake counting
-- Exceed `MistakeAllowance` → stone breaks
+- Exceed `MistakeAllowance` ÔåÆ stone breaks
 - No durability penalty (all-or-nothing)
 - Good for casual play
 
@@ -80,7 +80,7 @@ How wide the fracture spreads from the impact point.
 - `90` = Balanced (default)
 - `120` = Wide cone (dangerous, high risk)
 
-Real flint has ~100-136° cone angle, but gameplay values are tuned for fun.
+Real flint has ~100-136┬░ cone angle, but gameplay values are tuned for fun.
 
 #### FractureSpreadRate
 How quickly the cone widens as distance from impact increases.
@@ -176,7 +176,7 @@ The scaling adjusts based on `MistakeAllowance`:
 - Fracture mechanics only apply when clicking **interior voxels** (non-edge)
 - Edge voxels work normally (single voxel removal)
 - "Virtual edges" are recognized around recipe pattern holes
-- Durability transfer works for tool heads → finished tools via crafting grid
+- Durability transfer works for tool heads ÔåÆ finished tools via crafting grid
 
 ## License
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace precisionknapping
 {
@@ -26,7 +26,7 @@ namespace precisionknapping
 
         /// <summary>
         /// Cone angle in degrees for fracture spread (Hertzian cone simulation).
-        /// Real flint has ~100-136° but we use gameplay-tuned values.
+        /// Real flint has ~100-136┬░ but we use gameplay-tuned values.
         /// 0 = no spread (only direct line), 60 = narrow cone, 120 = wide cone
         /// Default: 90 (balanced)
         /// </summary>
@@ -78,53 +78,5 @@ namespace precisionknapping
         /// Default: 0.25 (25% bonus)
         /// </summary>
         public float PerfectKnappingBonus { get; set; } = 0.25f;
-
-        /// <summary>
-        /// Enable Charged Strikes: hold-to-charge, release-to-strike mechanics.
-        /// When enabled, replaces instant-click with charge-based knapping.
-        /// Includes charge sounds (rising pitch ticks) and animation control.
-        /// Works with BOTH Default and Advanced modes:
-        /// - ChargedStrikes + Default: Must charge strikes, mistake tolerance
-        /// - ChargedStrikes + Advanced: Must charge strikes, edge enforcement + fractures
-        /// Default: false
-        /// </summary>
-        public bool ChargedStrikes { get; set; } = false;
-
-        /// <summary>
-        /// Minimum charge time in milliseconds before strike can execute.
-        /// Quick clicks (below this threshold) do nothing.
-        /// Default: 500 (half second minimum)
-        /// </summary>
-        public int MinChargeTimeMs { get; set; } = 500;
-
-        /// <summary>
-        /// Time in milliseconds to reach full charge.
-        /// Charge level = (hold time) / (full charge time), clamped to 1.0
-        /// Longer charges can affect fracture size in Advanced Mode.
-        /// Default: 1500 (1.5 seconds for full charge)
-        /// </summary>
-        public int FullChargeTimeMs { get; set; } = 1500;
-
-
-
-        /// <summary>
-        /// Enable charge sounds (pitch-scaling charge sound, swoosh on release).
-        /// Default: true
-        /// </summary>
-        public bool EnableChargeSounds { get; set; } = true;
-
-        /// <summary>
-        /// Minimum pitch for charge sound (at 0% charge).
-        /// Range: 0.5 - 2.0
-        /// Default: 0.8
-        /// </summary>
-        public float ChargeSoundMinPitch { get; set; } = 0.8f;
-
-        /// <summary>
-        /// Maximum pitch for charge sound (at 100% charge).
-        /// Range: 0.5 - 2.0
-        /// Default: 1.5
-        /// </summary>
-        public float ChargeSoundMaxPitch { get; set; } = 1.5f;
     }
 }

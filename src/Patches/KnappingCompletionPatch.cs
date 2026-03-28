@@ -1,6 +1,7 @@
-using Vintagestory.API.Common;
+﻿using Vintagestory.API.Common;
 using Vintagestory.API.Server;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 
@@ -8,12 +9,25 @@ namespace precisionknapping
 {
     /// <summary>
     /// Harmony patch for BlockEntityKnappingSurface.CheckIfFinished
-    /// Handles recipe completion with missing protected voxels (mistakes)
-    /// Applies durability/quantity penalties based on mistake count
+    ///
+    /// APPROACH: Instead of bypassing vanilla completion (which breaks the tutorial system),
+    /// we manipulate the game state so vanilla completes normally:
+    /// 1. Prefix: Detect "effectively complete" state (all waste removed, possibly with mistakes)
+    /// 2. If mistakes exist: "heal" the voxel grid so vanilla sees a perfect match
+    /// 3. Modify the recipe's ResolvedItemstack in-place with our bonuses/penalties
+    /// 4. Return true - vanilla handles completion naturally (items, events, tutorial, block removal)
+    /// 5. Postfix: Restore the recipe output to its original state (shared resource)
     /// </summary>
     [HarmonyPatch]
     public static class KnappingCompletionPatch
     {
+        // Temporary storage for restoring recipe output after vanilla processes it
+        private static ItemStack _originalResolvedStack;
+        private static int _originalStackSize;
+        private static bool _needsRestore;
+        // Re-entry guard: vanilla CheckIfFinished can re-trigger after we heal voxels
+        private static bool _isProcessing;
+
         [HarmonyTargetMethod]
         static MethodBase TargetMethod()
         {
@@ -36,13 +50,6 @@ namespace precisionknapping
             if (method == null)
             {
                 Console.WriteLine("[COMPLETION-PATCH] ERROR: Could not find CheckIfFinished method!");
-                // List available methods for debugging
-                Console.WriteLine("[COMPLETION-PATCH] Available methods:");
-                foreach (var m in targetType.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
-                {
-                    if (m.Name.Contains("Check") || m.Name.Contains("Finish") || m.Name.Contains("Complete"))
-                        Console.WriteLine($"  - {m.Name}");
-                }
             }
             else
             {
@@ -53,9 +60,8 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Prefix checks if recipe is "effectively complete" (all waste removed)
-        /// If mistakes were made, we handle completion ourselves with penalties
-        /// Only intercepts when waste is removed but protected voxels are missing
+        /// Prefix: Detect effective completion, manipulate state for vanilla to process correctly.
+        /// ALWAYS returns true so vanilla runs and triggers all events (including tutorial).
         /// </summary>
         [HarmonyPrefix]
         static bool Prefix(object __instance, IPlayer byPlayer)
@@ -65,27 +71,26 @@ namespace precisionknapping
                 var entity = __instance as BlockEntity;
                 if (entity == null || entity.Api.Side != EnumAppSide.Server) return true;
 
-                entity.Api.Logger.Debug("[COMPLETION-PATCH] Prefix called!");
+                // Re-entry guard: after we heal voxels, vanilla may call CheckIfFinished again
+                if (_isProcessing) return true;
+
+                _needsRestore = false;
+                _isProcessing = true;
 
                 int mistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Mistakes: {mistakes}");
 
-                // Note: Don't return early for 0 mistakes - we need to check for bonus application
-
-                // Get current voxels and recipe using reflection helper
                 var currentVoxels = KnappingReflectionHelper.GetCurrentVoxels(entity);
                 var selectedRecipe = KnappingReflectionHelper.GetSelectedRecipe(entity);
 
                 if (currentVoxels == null || selectedRecipe == null) return true;
 
                 var recipeVoxels = KnappingReflectionHelper.GetRecipeVoxels(selectedRecipe);
-
                 if (recipeVoxels == null) return true;
 
-                // Check if recipe is "effectively complete":
-                // All non-protected voxels (waste) have been removed
+                // Check completion state
                 bool allWasteRemoved = true;
                 bool hasMissingProtected = false;
+                var missingProtectedPositions = new List<(int x, int z)>();
 
                 for (int x = 0; x < 16; x++)
                 {
@@ -94,100 +99,86 @@ namespace precisionknapping
                         bool isProtected = recipeVoxels[x, 0, z];
                         bool voxelExists = currentVoxels[x, z];
 
-                        // If this is waste (not protected) and still exists, not complete
                         if (!isProtected && voxelExists)
                         {
                             allWasteRemoved = false;
                         }
 
-                        // If this is protected but missing, we have mistakes
                         if (isProtected && !voxelExists)
                         {
                             hasMissingProtected = true;
+                            missingProtectedPositions.Add((x, z));
                         }
                     }
                 }
 
-                // Intercept if:
-                // 1. Waste is removed AND protected voxels missing (mistakes with penalties)
-                // 2. OR waste is removed AND no mistakes AND bonus is enabled (perfect completion with bonus)
+                if (!allWasteRemoved) return true; // Not done yet
+
                 var config = PrecisionKnappingModSystem.Config;
                 bool scalingEnabled = config?.EnableDurabilityScaling ?? true;
                 float bonusAmount = config?.PerfectKnappingBonus ?? 0.25f;
                 bool bonusEnabled = bonusAmount > 0f && scalingEnabled;
-                bool shouldIntercept = allWasteRemoved && (hasMissingProtected || (bonusEnabled && mistakes == 0));
+                bool shouldModify = hasMissingProtected || (bonusEnabled && mistakes == 0);
 
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] allWasteRemoved={allWasteRemoved}, hasMissingProtected={hasMissingProtected}, scalingEnabled={scalingEnabled}, bonusEnabled={bonusEnabled}, bonusAmount={bonusAmount}, mistakes={mistakes}, shouldIntercept={shouldIntercept}");
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] allWasteRemoved={allWasteRemoved}, hasMissingProtected={hasMissingProtected}, mistakes={mistakes}, shouldModify={shouldModify}");
 
-                if (!shouldIntercept)
+                if (!shouldModify) return true; // Vanilla handles perfectly
+
+                // === STEP 1: Heal voxel grid if mistakes were made ===
+                // Fill in missing protected voxels so vanilla sees a perfect recipe match
+                if (hasMissingProtected)
                 {
-                    entity.Api.Logger.Debug("[COMPLETION-PATCH] Not intercepting - letting vanilla handle");
-                    return true; // Let vanilla handle
+                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Healing {missingProtectedPositions.Count} missing protected voxels");
+                    foreach (var (x, z) in missingProtectedPositions)
+                    {
+                        currentVoxels[x, z] = true;
+                    }
+                    // Note: No MarkDirty needed - vanilla will remove the block anyway
                 }
 
-                entity.Api.Logger.Debug("[COMPLETION-PATCH] INTERCEPTING completion!");
-
-                // Recipe is complete! Handle with bonuses or penalties
-
-                // Get output item using reflection helper
+                // === STEP 2: Modify recipe output in-place ===
                 ItemStack resolvedStack = KnappingReflectionHelper.GetRecipeOutput(selectedRecipe, entity.Api.World);
+                if (resolvedStack == null) return true;
 
-                if (resolvedStack == null)
-                {
-                    entity.Api.Logger.Debug("[COMPLETION-PATCH] resolvedStack is NULL - falling back to vanilla");
-                    return true;
-                }
-
-                // Clone the output stack
-                ItemStack outStack = resolvedStack.Clone();
-                string itemCode = outStack.Collectible?.Code?.ToString() ?? "";
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Output item: {itemCode}");
-
-                // Check both patterns: tool heads (no durability, but transfer ratio) AND items with durability (whetstones)
-                int maxDur = outStack.Collectible.GetMaxDurability(outStack);
+                string itemCode = resolvedStack.Collectible?.Code?.ToString() ?? "";
+                int maxDur = resolvedStack.Collectible.GetMaxDurability(resolvedStack);
                 bool hasDurability = maxDur > 0;
                 bool isToolHead = AdvancedKnappingHelper.IsToolHead(itemCode);
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] maxDur={maxDur}, hasDurability={hasDurability}, isToolHead={isToolHead}");
+
+                // Store original state for postfix restoration
+                _originalResolvedStack = resolvedStack;
+                _originalStackSize = resolvedStack.StackSize;
+                _needsRestore = true;
+
+                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Modifying output: {itemCode}, isToolHead={isToolHead}, hasDurability={hasDurability}, mistakes={mistakes}");
 
                 if (isToolHead && scalingEnabled)
                 {
-                    // Tool heads: store durability ratio for crafting transfer to finished tool
                     float durabilityMult = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
-                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Tool head - storing ratio: {durabilityMult}");
+                    resolvedStack.Attributes.SetFloat("precisionknapping:durabilityRatio", durabilityMult);
 
-                    // Store ratio attribute that transfers to finished tool during crafting
-                    outStack.Attributes.SetFloat("precisionknapping:durabilityRatio", durabilityMult);
-
-                    // If tool head itself has durability, also set it directly
                     if (maxDur > 0)
                     {
                         int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
-                        outStack.Attributes.SetInt("durability", newDur);
+                        resolvedStack.Attributes.SetInt("durability", newDur);
                     }
 
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
                 else if (hasDurability && scalingEnabled)
                 {
-                    // Items with durability but not tool heads (whetstones, etc): apply durability directly
                     float durabilityMult = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
-                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Durability item - applying: mult={durabilityMult}");
-
                     int newDur = Math.Max(1, (int)(maxDur * durabilityMult));
-                    outStack.Attributes.SetInt("durability", newDur);
-                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Set durability: {newDur}/{maxDur}");
+                    resolvedStack.Attributes.SetInt("durability", newDur);
 
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
                 else if (!isToolHead && !hasDurability && scalingEnabled)
                 {
-                    // Stackable items (arrowheads, fishing hooks) in Advanced Mode:
-                    // Apply the same durability multiplier to quantity with rounding
-                    // Example: 4 items * 1.25 = 5, 4 items * 0.75 = 3, 4 items * 1.13 = 4.52 -> 5
                     float multiplier = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
-                    int originalQty = outStack.StackSize;
+                    int originalQty = resolvedStack.StackSize;
                     int finalQty = Math.Max(1, (int)Math.Round(originalQty * multiplier));
-                    outStack.StackSize = finalQty;
+                    resolvedStack.StackSize = finalQty;
 
                     if (finalQty != originalQty)
                     {
@@ -204,40 +195,24 @@ namespace precisionknapping
                     }
                     else if (multiplier > 1.0f)
                     {
-                        // Bonus applied but quantity same due to rounding (e.g., 1 * 1.13 = 1)
                         int bonusPercent = (int)((multiplier - 1.0f) * 100);
                         if (byPlayer is IServerPlayer sp)
                             sp.SendMessage(0, $"[Precision Knapping] Perfect! +{bonusPercent}% (no extra item due to rounding)", EnumChatType.Notification);
                     }
                 }
 
-                // Give item to player
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Giving item to player...");
-                if (!byPlayer.InventoryManager.TryGiveItemstack(outStack))
-                {
-                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Inventory full, spawning entity");
-                    entity.Api.World.SpawnItemEntity(outStack, entity.Pos.ToVec3d().Add(0.5, 0.5, 0.5));
-                }
-                else
-                {
-                    entity.Api.Logger.Debug($"[COMPLETION-PATCH] Item given to inventory");
-                }
-
-                // Clear mistake count
+                // Clear mistake count before vanilla processes
                 AdvancedKnappingHelper.ClearMistakeCount(entity.Pos);
 
-                // Remove the knapping surface block
-                entity.Api.World.BlockAccessor.SetBlock(0, entity.Pos);
-                entity.Api.Logger.Debug($"[COMPLETION-PATCH] Block removed, completion handled!");
+                entity.Api.Logger.Debug("[COMPLETION-PATCH] State modified, letting vanilla handle completion");
 
-                // Play completion sound
-                KnappingSoundHelper.PlayChipSound(entity.Api, entity.Pos, byPlayer);
-
-                return false; // Skip vanilla - we handled it
+                // Return true: vanilla sees a perfect voxel match + our modified output
+                // Vanilla handles: giving item, removing block, firing events, tutorial notifications
+                return true;
             }
             catch (Exception ex)
             {
-                // Use API logger if available, otherwise Console
+                _isProcessing = false;
                 try
                 {
                     var entity = __instance as BlockEntity;
@@ -245,8 +220,39 @@ namespace precisionknapping
                 }
                 catch { }
                 Console.WriteLine($"[KnappingCompletionPatch] Error: {ex.Message}");
-                Console.WriteLine($"[KnappingCompletionPatch] Stack: {ex.StackTrace}");
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// Postfix: Restore recipe output to original state after vanilla processed it.
+        /// The recipe's ResolvedItemstack is a shared resource - must be restored for next use.
+        /// </summary>
+        [HarmonyPostfix]
+        static void Postfix(object __instance)
+        {
+            // Always clear re-entry guard
+            _isProcessing = false;
+
+            if (!_needsRestore || _originalResolvedStack == null) return;
+
+            try
+            {
+                // Restore original stack size (for stackable items)
+                _originalResolvedStack.StackSize = _originalStackSize;
+
+                // Remove our custom attributes from the shared template
+                _originalResolvedStack.Attributes.RemoveAttribute("precisionknapping:durabilityRatio");
+                _originalResolvedStack.Attributes.RemoveAttribute("durability");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[COMPLETION-PATCH] Postfix restore error: {ex.Message}");
+            }
+            finally
+            {
+                _originalResolvedStack = null;
+                _needsRestore = false;
             }
         }
     }

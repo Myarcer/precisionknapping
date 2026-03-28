@@ -1,4 +1,4 @@
-using Vintagestory.API.MathTools;
+﻿using Vintagestory.API.MathTools;
 using System;
 using System.Collections.Generic;
 

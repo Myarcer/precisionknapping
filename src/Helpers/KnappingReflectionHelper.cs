@@ -1,4 +1,4 @@
-using Vintagestory.API.Common;
+﻿using Vintagestory.API.Common;
 using System;
 using System.Reflection;
 
@@ -121,7 +121,7 @@ namespace precisionknapping
 
         /// <summary>
         /// Calls the vanilla CheckIfFinished method to trigger recipe completion check.
-        /// This is needed in ChargedStrikes mode since we bypass vanilla OnUseOver.
+        /// Needed when our patches bypass vanilla OnUseOver (waste pocket/fracture removal).
         /// </summary>
         public static void CallCheckIfFinished(object entity, IPlayer player)
         {
