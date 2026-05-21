@@ -189,3 +189,18 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Credits
 
 Fracture physics inspired by real conchoidal fracture mechanics and Hertzian cone theory used in archaeological lithic analysis.
+
+---
+
+## Dev Reference — Shared VS Source
+
+**MANDATORY when inspecting VS API, finding method signatures, or studying game internals.**
+Decompiled VS source, game DLLs, and third-party mod source are in the shared references folder — **do not search for VS API source elsewhere, it is already here**:
+
+```
+Y:\ClaudeWINDOWS\projects\vintage_story\references\
+├── 1.21\   ← VS 1.21.6 DLLs + decompiled\ source + mod sources
+└── 1.22\   ← VS 1.22.0 DLLs + vsapi/ vssurvivalmod/ vsessentialsmod/ source clones
+```
+
+See `references\README.md` for full index.
