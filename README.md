@@ -11,6 +11,8 @@ A Vintage Story mod that adds realistic fracture mechanics to stone knapping. Ma
 
 ## Installation
 
+Requires Vintage Story 1.22.0 or later. Version 1.4.0 was verified against game build 1.22.6.
+
 1. Download the latest release ZIP file
 2. Place it in your `%APPDATA%\VintagestoryData\Mods\` folder
 3. Restart Vintage Story
@@ -200,7 +202,7 @@ Decompiled VS source, game DLLs, and third-party mod source are in the shared re
 ```
 Y:\ClaudeWINDOWS\projects\vintage_story\references\
 ├── 1.21\   ← VS 1.21.6 DLLs + decompiled\ source + mod sources
-└── 1.22\   ← VS 1.22.0 DLLs + vsapi/ vssurvivalmod/ vsessentialsmod/ source clones
+└── 1.22\   ← VS 1.22.6 DLLs + vsapi/ vssurvivalmod/ vsessentialsmod/ source clones (1.22.5)
 ```
 
 See `references\README.md` for full index.

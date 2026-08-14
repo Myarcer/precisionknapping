@@ -1,5 +1,30 @@
 ﻿# Precision Knapping - Changelog
 
+## v1.4.0 (August 14, 2026)
+
+### Vintage Story 1.22 support
+
+- Builds against .NET 10 and Harmony 2.4.2, the runtime and library that VS 1.22 uses.
+- All patch targets were verified against the 1.22.6 game assemblies: `BlockEntityKnappingSurface.OnUseOver`,
+  `BlockEntityKnappingSurface.CheckIfFinished`, `CollectibleObject.OnCreatedByCrafting`, and the reflected
+  fields `Voxels`, `SelectedRecipe`, `Output` and `ResolvedItemstack`. No signature changed.
+- Removed a dead asset patch (`assets/game/patches/knappingsurface-entity.json`). It set a block entity class
+  that the mod never registered, and its target path did not exist in the game. The game logged a patch failure
+  for it at every start.
+- The mod icon is now in the release package. Earlier packages had no icon, so the mod manager showed none.
+- The minimum game version is 1.22.0.
+
+### Changes from v1.4.0-rc.1
+
+- Removed the Charged Strikes mode. Its design does not fit the 1.22 knapping code.
+- The completion patch heals the voxel grid and lets the game finish the recipe. This keeps the tutorial flow
+  and all completion events.
+- A re-entry guard stops a double completion bonus.
+- The crafting patch uses the 1.22 `IRecipeBase` signature and reads parameters by position.
+- Each Harmony patch is applied on its own. One failure does not stop the others.
+
+---
+
 ## v1.3.0 (February 3, 2026)
 
 ### Charged Strikes Mode ÔÜí

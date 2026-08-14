@@ -6,9 +6,9 @@
     "Nyarc"
   ],
   "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties.",
-  "version": "1.4.0-rc.1",
+  "version": "1.4.0",
   "dependencies": {
-    "game": "1.22.0-rc.1"
+    "game": "1.22.0"
   },
   "website": "https://github.com/Myarcer/precisionknapping",
   "contributors": []
