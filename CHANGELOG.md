@@ -1,5 +1,15 @@
 ﻿# Precision Knapping - Changelog
 
+## v1.4.1 (August 14, 2026)
+
+Release version of the 1.22 update. Version 1.4.0 was a build for test only.
+
+In-game test on Vintage Story 1.22.6, client and server: the mod loads with no error, all three
+Harmony patches apply, and a full knapping session completed correctly. The log shows the completion
+patch healing the voxel grid and scaling the output for 1 mistake and for 4 mistakes.
+
+---
+
 ## v1.4.0 (August 14, 2026)
 
 ### Vintage Story 1.22 support

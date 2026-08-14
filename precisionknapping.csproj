@@ -4,7 +4,7 @@
     <AssemblyName>precisionknapping</AssemblyName>
     <RootNamespace>precisionknapping</RootNamespace>
     <!-- Keep in sync with resources\modinfo.json -->
-    <ModVersion>1.4.0</ModVersion>
+    <ModVersion>1.4.1</ModVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>

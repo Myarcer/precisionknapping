@@ -11,7 +11,7 @@ A Vintage Story mod that adds realistic fracture mechanics to stone knapping. Ma
 
 ## Installation
 
-Requires Vintage Story 1.22.0 or later. Version 1.4.0 was verified against game build 1.22.6.
+Requires Vintage Story 1.22.0 or later. Version 1.4.1 was verified against game build 1.22.6.
 
 1. Download the latest release ZIP file
 2. Place it in your `%APPDATA%\VintagestoryData\Mods\` folder
