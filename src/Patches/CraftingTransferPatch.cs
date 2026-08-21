@@ -125,6 +125,13 @@ namespace precisionknapping
                 {
                     int newDurability = Math.Max(1, (int)(outputMaxDur * foundRatio.Value));
                     outputSlot.Itemstack.Attributes.SetInt("durability", newDurability);
+
+                    // Carry the ratio itself plus a pending marker onto the finished tool.
+                    // RarityCompatPatch needs the ratio later (e.g. after Item Rarity scales
+                    // max durability), and the marker tells it this tool's durability is
+                    // still unscaled and undamaged.
+                    outputSlot.Itemstack.Attributes.SetFloat("precisionknapping:durabilityRatio", foundRatio.Value);
+                    outputSlot.Itemstack.Attributes.SetBool("precisionknapping:durabilityPending", true);
                 }
             }
             catch (Exception)
