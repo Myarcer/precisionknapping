@@ -1,5 +1,6 @@
 ﻿using Vintagestory.API.Common;
 using Vintagestory.API.Server;
+using Vintagestory.API.MathTools;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -25,8 +26,16 @@ namespace precisionknapping
         private static ItemStack _originalResolvedStack;
         private static int _originalStackSize;
         private static bool _needsRestore;
-        // Re-entry guard: vanilla CheckIfFinished can re-trigger after we heal voxels
-        private static bool _isProcessing;
+
+        // Re-entry guard per surface position: vanilla CheckIfFinished can re-trigger after
+        // we heal voxels. Per-position instead of one global flag, so two players completing
+        // on different surfaces in the same tick don't swallow each other's bonuses.
+        private static readonly HashSet<BlockPos> _processingPositions = new HashSet<BlockPos>();
+
+        // Per-player fractional remainder for quantity scaling: a bonus of 125% on 4 items is
+        // 5.0, but 115% on 4 items is 4.6 - the fraction carries into the player's next craft
+        // instead of being lost to rounding every time.
+        private static readonly Dictionary<string, float> _quantityCarry = new Dictionary<string, float>();
 
         [HarmonyTargetMethod]
         static MethodBase TargetMethod()
@@ -72,10 +81,10 @@ namespace precisionknapping
                 if (entity == null || entity.Api.Side != EnumAppSide.Server) return true;
 
                 // Re-entry guard: after we heal voxels, vanilla may call CheckIfFinished again
-                if (_isProcessing) return true;
+                if (_processingPositions.Contains(entity.Pos)) return true;
 
                 _needsRestore = false;
-                _isProcessing = true;
+                _processingPositions.Add(entity.Pos);
 
                 int mistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
 
@@ -143,7 +152,9 @@ namespace precisionknapping
                 string itemCode = resolvedStack.Collectible?.Code?.ToString() ?? "";
                 int maxDur = resolvedStack.Collectible.GetMaxDurability(resolvedStack);
                 bool hasDurability = maxDur > 0;
-                bool isToolHead = AdvancedKnappingHelper.IsToolHead(itemCode);
+                // Durable components count as tool parts even when the name heuristic misses
+                // them (modded heads with unusual codes): they carry quality into the crafted tool.
+                bool isToolHead = hasDurability || AdvancedKnappingHelper.IsToolHead(itemCode);
 
                 // Store original state for postfix restoration
                 _originalResolvedStack = resolvedStack;
@@ -173,11 +184,17 @@ namespace precisionknapping
 
                     KnappingMessageHelper.NotifyCompletionDurability(byPlayer, mistakes, durabilityMult);
                 }
-                else if (!isToolHead && !hasDurability && scalingEnabled)
+                else if (scalingEnabled)
                 {
                     float multiplier = AdvancedKnappingHelper.GetDurabilityMultiplier(mistakes);
                     int originalQty = resolvedStack.StackSize;
-                    int finalQty = Math.Max(1, (int)Math.Round(originalQty * multiplier));
+
+                    // Fractional remainder carries to the player's next craft, and the result
+                    // never exceeds the item's stack size.
+                    float exact = originalQty * multiplier + GetQuantityCarry(byPlayer);
+                    int finalQty = (int)Math.Floor(exact);
+                    SetQuantityCarry(byPlayer, exact - finalQty);
+                    finalQty = GameMath.Clamp(finalQty, 1, resolvedStack.Collectible.MaxStackSize);
                     resolvedStack.StackSize = finalQty;
 
                     if (finalQty != originalQty)
@@ -200,7 +217,7 @@ namespace precisionknapping
                 }
 
                 // Clear mistake count before vanilla processes
-                AdvancedKnappingHelper.ClearMistakeCount(entity.Pos);
+                AdvancedKnappingHelper.ClearMistakeCount(entity);
 
                 entity.Api.Logger.Debug("[COMPLETION-PATCH] State modified, letting vanilla handle completion");
 
@@ -210,16 +227,29 @@ namespace precisionknapping
             }
             catch (Exception ex)
             {
-                _isProcessing = false;
+                var errEntity = __instance as BlockEntity;
+                if (errEntity?.Pos != null) _processingPositions.Remove(errEntity.Pos);
                 try
                 {
-                    var entity = __instance as BlockEntity;
-                    entity?.Api?.Logger?.Error($"[COMPLETION-PATCH] Error: {ex.Message}\n{ex.StackTrace}");
+                    errEntity?.Api?.Logger?.Error($"[COMPLETION-PATCH] Error: {ex.Message}\n{ex.StackTrace}");
                 }
                 catch { }
                 Console.WriteLine($"[KnappingCompletionPatch] Error: {ex.Message}");
                 return true;
             }
+        }
+
+        private static float GetQuantityCarry(IPlayer player)
+        {
+            if (player?.PlayerUID == null) return 0f;
+            return _quantityCarry.TryGetValue(player.PlayerUID, out float carry) ? carry : 0f;
+        }
+
+        private static void SetQuantityCarry(IPlayer player, float carry)
+        {
+            if (player?.PlayerUID == null) return;
+            if (Math.Abs(carry) < 0.0001f) _quantityCarry.Remove(player.PlayerUID);
+            else _quantityCarry[player.PlayerUID] = carry;
         }
 
         /// <summary>
@@ -229,8 +259,9 @@ namespace precisionknapping
         [HarmonyPostfix]
         static void Postfix(object __instance)
         {
-            // Always clear re-entry guard
-            _isProcessing = false;
+            // Always clear re-entry guard for this surface
+            var entity = __instance as BlockEntity;
+            if (entity?.Pos != null) _processingPositions.Remove(entity.Pos);
 
             if (!_needsRestore || _originalResolvedStack == null) return;
 

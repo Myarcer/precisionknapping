@@ -1,8 +1,8 @@
 ﻿using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.API.Datastructures;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace precisionknapping
 {
@@ -118,80 +118,38 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Get or initialize the mistake count for a BlockEntity.
-        /// Uses static dictionary as primary (reliable), with BlockEntity attributes as backup for persistence
+        /// Mistake count per BlockEntity instance.
+        ///
+        /// ConditionalWeakTable keys on the entity object itself:
+        /// - A new surface at the same BlockPos never inherits an old count
+        ///   (the old BlockPos-keyed dictionary leaked counts into replacement surfaces).
+        /// - Unloaded entities can be garbage collected; their count goes with them.
+        /// Counts are session-only by design: after a server restart a half-knapped
+        /// surface continues with 0 mistakes, same as vanilla behavior for the voxels.
         /// </summary>
-        private static Dictionary<BlockPos, int> mistakeCountCache = new Dictionary<BlockPos, int>();
+        private static readonly ConditionalWeakTable<BlockEntity, StrongBox<int>> mistakeCounts =
+            new ConditionalWeakTable<BlockEntity, StrongBox<int>>();
 
         public static int GetMistakeCount(BlockEntity entity)
         {
-            try
-            {
-                // Primary: Use position-based cache (fast, reliable within session)
-                if (mistakeCountCache.TryGetValue(entity.Pos, out int cached))
-                {
-                    return cached;
-                }
-                
-                // Fallback: Check BlockEntity attributes (persists if player walks away and back)
-                // BlockEntity has a public Attributes property we can access directly
-                if (entity is BlockEntity be && be.Block != null)
-                {
-                    var attrs = be.GetType().GetProperty("Attributes")?.GetValue(be) as ITreeAttribute;
-                    if (attrs != null)
-                    {
-                        int stored = attrs.GetInt("precisionknapping:mistakes", 0);
-                        if (stored > 0)
-                        {
-                            mistakeCountCache[entity.Pos] = stored; // Sync to cache
-                            return stored;
-                        }
-                    }
-                }
-                
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                entity.Api?.Logger.Error($"[MISTAKE-TRACKING] Error getting mistake count: {ex.Message}");
-                return 0;
-            }
+            if (entity == null) return 0;
+            return mistakeCounts.TryGetValue(entity, out StrongBox<int> box) ? box.Value : 0;
         }
 
-        /// <summary>
-        /// Set the mistake count for a BlockEntity.
-        /// Stores in both cache and BlockEntity attributes for reliability
-        /// </summary>
         public static void SetMistakeCount(BlockEntity entity, int count)
         {
-            try
-            {
-                // Always update cache (primary)
-                mistakeCountCache[entity.Pos] = count;
-                
-                // Also try to persist to BlockEntity attributes (backup)
-                if (entity is BlockEntity be)
-                {
-                    var attrs = be.GetType().GetProperty("Attributes")?.GetValue(be) as ITreeAttribute;
-                    if (attrs != null)
-                    {
-                        attrs.SetInt("precisionknapping:mistakes", count);
-                        be.MarkDirty(true);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                entity.Api?.Logger.Error($"[MISTAKE-TRACKING] Error setting mistake count: {ex.Message}");
-            }
+            if (entity == null) return;
+            mistakeCounts.Remove(entity);
+            mistakeCounts.Add(entity, new StrongBox<int>(count));
         }
 
         /// <summary>
         /// Clear mistake count when stone is broken or recipe completed
         /// </summary>
-        public static void ClearMistakeCount(BlockPos pos)
+        public static void ClearMistakeCount(BlockEntity entity)
         {
-            mistakeCountCache.Remove(pos);
+            if (entity == null) return;
+            mistakeCounts.Remove(entity);
         }
 
         /// <summary>

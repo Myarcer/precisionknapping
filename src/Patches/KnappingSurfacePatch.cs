@@ -347,8 +347,8 @@ namespace precisionknapping
                 return true; // Let server handle it
             }
 
-            // Clear mistake cache for this position
-            AdvancedKnappingHelper.ClearMistakeCount(entity.Pos);
+            // Clear mistake count for this surface
+            AdvancedKnappingHelper.ClearMistakeCount(entity);
 
             // Play stone breaking sound
             KnappingSoundHelper.PlayStoneBreakSound(entity.Api, entity.Pos);

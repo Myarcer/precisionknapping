@@ -34,6 +34,7 @@ namespace precisionknapping
     /// - src/Patches/KnappingSurfacePatch.cs      - OnUseOver Harmony patch
     /// - src/Patches/KnappingCompletionPatch.cs   - CheckIfFinished patch
     /// - src/Patches/CraftingTransferPatch.cs     - Crafting durability patch
+    /// - src/Patches/StackMergePatch.cs           - Keeps different-quality heads unstacked
     /// </summary>
     public class PrecisionKnappingModSystem : ModSystem
     {
@@ -86,7 +87,8 @@ namespace precisionknapping
             {
                 typeof(KnappingSurfacePatch),
                 typeof(KnappingCompletionPatch),
-                typeof(CraftingDurabilityTransferPatch)
+                typeof(CraftingDurabilityTransferPatch),
+                typeof(StackMergePatch)
             };
 
             foreach (var patchType in patchTypes)

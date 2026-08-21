@@ -1,5 +1,45 @@
 ﻿# Precision Knapping - Changelog
 
+## v1.4.3 (August 21, 2026)
+
+### Fixed: tool heads of different quality stack into one pile (ModDB report)
+
+Knapped heads store their quality in `precisionknapping:durabilityRatio`, but that
+attribute must stay in the game's ignored-stack-attributes list, or recipe ingredient
+matching and tutorial checks reject knapped heads. Stack equality ignores it too, so a
+perfect head merged with a damaged head and both counted as perfect. A new patch
+(`StackMergePatch`) now blocks merging only when two stacks disagree on our ratio. Two
+perfect heads still merge; perfect vs damaged, or knapped vs vanilla head, stay separate.
+
+### Fixed: multiplayer completion race
+
+The completion re-entry guard was one global flag. When two players finished recipes on
+different surfaces in the same tick, the second player got vanilla output with no bonus
+or penalty. The guard is now per surface position.
+
+### Fixed: mistake counts leaking between surfaces
+
+Mistake counts were stored in a dictionary keyed by block position, plus a persistence
+fallback that read a BlockEntity attribute that does not exist in the API (dead code -
+it never worked). A new surface placed at the same position could inherit the old count.
+Counts are now keyed on the entity instance itself: a new surface always starts at zero,
+and unloaded surfaces release their memory. Counts remain session-only by design.
+
+### Fixed: quantity bonuses lost to rounding
+
+A 115% quantity bonus on 4 items is 4.6 - rounding gave 4 every craft and lost the
+fraction forever. The fraction now carries into the player's next craft. Results are also
+clamped to the item's stack size, which fixes a related overflow: a 125% bonus on a full
+stack of 4 shovel heads produced 5 items in a max-4 stack.
+
+### Improved: durable components keep their quality through crafting
+
+Only items whose code contains "head" or "blade" carried the durability ratio into the
+crafted tool. Modded durable parts with unusual names were treated as plain stackables.
+Any ingredient with its own durability now carries the ratio.
+
+---
+
 ## v1.4.2 (August 21, 2026)
 
 ### New Config Option: `ShowMessages`
