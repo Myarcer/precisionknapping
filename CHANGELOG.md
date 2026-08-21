@@ -1,5 +1,18 @@
 ﻿# Precision Knapping - Changelog
 
+## What changed since v1.4.1 (player-facing)
+
+- New config option `ShowMessages`. Set it to false to hide all mod chat messages.
+- Tool heads of different quality no longer merge into one stack.
+- Perfect and damaged heads stay separate in chests and inventories.
+- Two players can finish knapping at the same time. Both keep their bonus or penalty.
+- A new stone never starts with mistakes from an old stone at the same spot.
+- Quantity bonuses are no longer lost to rounding. The fraction counts on your next craft.
+- Bonus items never exceed the stack size limit.
+- Modded tool parts with durability now keep their quality bonus after crafting.
+
+---
+
 ## v1.4.3 (August 21, 2026)
 
 ### Fixed: tool heads of different quality stack into one pile (ModDB report)
