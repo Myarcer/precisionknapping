@@ -4,13 +4,10 @@ Status after the v1.4.3 bug-fix round (August 21, 2026).
 
 ## Known Incompatibilities
 
-### Item Rarity (ModDB report, unconfirmed fix)
-Item Rarity calculates its durability bonus after the tool is crafted. Precision Knapping
-writes its durability at crafting time, so the two stages overwrite each other: an epic
-rarity tool can start "damaged" (for example 160/300) instead of getting both bonuses.
-Needs the Item Rarity source to see which method it patches and in which order. Possible
-fix on our side: detect Item Rarity and re-apply our ratio after its stage, or expose the
-ratio as a documented attribute other mods can read. Not started.
+None known. The Item Rarity conflict was fixed in v1.4.3 with `RarityCompatPatch`:
+it runs after Item Rarity's craft hook and re-applies our ratio to the rarity-scaled
+max durability. Verified against ItemRarity 1.2.2 decompiled source
+(`CollectibleObjectPatch.GetMaxDurabilityPatch`, `PatchHelpers.ConsumeCraftingIngredients`).
 
 ## Core Logic Bugs - all fixed in v1.4.3
 
@@ -21,6 +18,7 @@ ratio as a documented attribute other mods can read. Not started.
   zero-durability heads, where recipe scanning cannot distinguish a head from a stick)
 - Quantity bonus lost to rounding (per-player fractional carry) - fixed
 - Different-quality heads stacking into one pile (ModDB report) - fixed via StackMergePatch
+- Item Rarity durability conflict (ModDB report) - fixed via RarityCompatPatch
 
 ## Feature Candidates
 

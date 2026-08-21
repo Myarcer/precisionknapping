@@ -35,6 +35,7 @@ namespace precisionknapping
     /// - src/Patches/KnappingCompletionPatch.cs   - CheckIfFinished patch
     /// - src/Patches/CraftingTransferPatch.cs     - Crafting durability patch
     /// - src/Patches/StackMergePatch.cs           - Keeps different-quality heads unstacked
+    /// - src/Patches/RarityCompatPatch.cs         - Re-applies ratio after Item Rarity scales max
     /// </summary>
     public class PrecisionKnappingModSystem : ModSystem
     {
@@ -88,7 +89,8 @@ namespace precisionknapping
                 typeof(KnappingSurfacePatch),
                 typeof(KnappingCompletionPatch),
                 typeof(CraftingDurabilityTransferPatch),
-                typeof(StackMergePatch)
+                typeof(StackMergePatch),
+                typeof(RarityCompatPatch)
             };
 
             foreach (var patchType in patchTypes)

@@ -10,6 +10,8 @@
 - Quantity bonuses are no longer lost to rounding. The fraction counts on your next craft.
 - Bonus items never exceed the stack size limit.
 - Modded tool parts with durability now keep their quality bonus after crafting.
+- Item Rarity works with this mod again. The knapping bonus or penalty now uses the
+  rarity-scaled max durability, so a legendary tool gets its full percentage.
 
 ---
 
@@ -50,6 +52,15 @@ stack of 4 shovel heads produced 5 items in a max-4 stack.
 Only items whose code contains "head" or "blade" carried the durability ratio into the
 crafted tool. Modded durable parts with unusual names were treated as plain stackables.
 Any ingredient with its own durability now carries the ratio.
+
+### Fixed: durability conflict with Item Rarity (ModDB report)
+
+Item Rarity assigns its rarity after the tool is crafted and scales the max durability
+virtually. The absolute durability this mod writes at crafting time did not see that
+scale, so a perfect knapped legendary axe showed 75/80 instead of 100/80, and damaged
+rarity tools started "broken". A new patch (`RarityCompatPatch`) runs after Item
+Rarity's craft hook and re-applies our ratio to the effective max durability. Without
+Item Rarity the recomputed value is identical and nothing changes.
 
 ---
 
