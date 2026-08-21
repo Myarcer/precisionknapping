@@ -6,75 +6,78 @@ using HarmonyLib;
 namespace precisionknapping
 {
     /// <summary>
-    /// Harmony patch for CollectibleObject.ConsumeCraftingIngredients
+    /// Compatibility patch for Item Rarity.
     ///
-    /// Compatibility with Item Rarity (and any mod that scales max durability after crafting).
+    /// Item Rarity scales max durability VIRTUALLY: its postfix on GetMaxDurability
+    /// multiplies the result by its "maxdurabilitymul" attribute. Rarity is assigned in
+    /// a postfix on ConsumeCraftingIngredients - AFTER our crafting transfer patch wrote
+    /// durability = BASE max * ratio in OnCreatedByCrafting.
     ///
-    /// Order of events for one grid craft:
-    /// 1. RecipeBase.Resolve calls OnCreatedByCrafting: our transfer patch writes
-    ///    durability = BASE max * precisionknapping:durabilityRatio.
-    /// 2. ConsumeCraftingIngredients: Item Rarity's postfix assigns the rarity and
-    ///    multiplies MAX durability virtually (its own GetMaxDurability postfix).
-    /// The absolute durability written in step 1 never saw that multiplier, so a perfect
-    /// knapped legendary tool showed e.g. 75/80 instead of 100/80.
+    /// A first attempt patched ConsumeCraftingIngredients as well, but Harmony executes
+    /// higher-priority postfixes first: our Priority.Last postfix ran BEFORE Item
+    /// Rarity's priority-0 postfix, recomputed against the pre-rarity max, found the
+    /// stored value unchanged and skipped. Result stayed 75/84 instead of 105/84.
     ///
-    /// This postfix runs after Item Rarity's (Priority.Last vs their priority 0) and
-    /// re-applies our ratio to the now-effective max durability. Without a rarity the
-    /// recomputed value equals the stored one and nothing is written.
+    /// This patch hooks Item Rarity's Rarity.ApplyRarity directly instead. The postfix
+    /// runs inside their apply, immediately after the multipliers are written, with no
+    /// ordering dependency on any third-party patch. When Item Rarity is not loaded,
+    /// IsAvailable is false and this patch is never applied.
     /// </summary>
     [HarmonyPatch]
     public static class RarityCompatPatch
     {
         private const string RatioKey = "precisionknapping:durabilityRatio";
+        private const string RarityType = "ItemRarity.Rarities.Rarity";
+
+        private static readonly bool _isAvailable =
+            AccessTools.TypeByName(RarityType) != null;
+
+        /// <summary>True only when Item Rarity is loaded.</summary>
+        public static bool IsAvailable => _isAvailable;
 
         [HarmonyTargetMethod]
         static MethodBase TargetMethod()
         {
-            Type recipeBaseType = typeof(CollectibleObject).Assembly.GetType("Vintagestory.API.Common.IRecipeBase");
-            if (recipeBaseType == null)
+            var rarityType = AccessTools.TypeByName(RarityType);
+            if (rarityType == null)
             {
-                Console.WriteLine("[RARITY-COMPAT] ERROR: IRecipeBase type not found!");
+                Console.WriteLine("[RARITY-COMPAT] ERROR: ItemRarity.Rarities.Rarity not found!");
                 return null;
             }
 
-            var method = typeof(CollectibleObject).GetMethod("ConsumeCraftingIngredients",
-                BindingFlags.Public | BindingFlags.Instance,
-                null,
-                new Type[] { typeof(ItemSlot[]), typeof(ItemSlot), recipeBaseType },
-                null);
-
+            var method = AccessTools.Method(rarityType, "ApplyRarity");
             if (method == null)
             {
-                Console.WriteLine("[RARITY-COMPAT] ERROR: Could not find ConsumeCraftingIngredients!");
+                Console.WriteLine("[RARITY-COMPAT] ERROR: Could not find Rarity.ApplyRarity!");
             }
 
             return method;
         }
 
         [HarmonyPostfix]
-        [HarmonyPriority(Priority.Last)]
-        public static void Postfix(ItemSlot outputSlot)
+        public static void Postfix(ItemStack itemStack)
         {
             try
             {
-                ItemStack stack = outputSlot?.Itemstack;
-                if (stack?.Attributes == null || stack.Collectible == null) return;
+                if (itemStack?.Attributes == null || itemStack.Collectible == null) return;
 
-                float ratio = stack.Attributes.GetFloat(RatioKey, -1f);
+                float ratio = itemStack.Attributes.GetFloat(RatioKey, -1f);
                 if (ratio <= 0f) return;
 
-                int effectiveMax = stack.Collectible.GetMaxDurability(stack);
+                int effectiveMax = itemStack.Collectible.GetMaxDurability(itemStack);
                 if (effectiveMax <= 0) return;
 
                 int newDurability = Math.Max(1, (int)(effectiveMax * ratio));
-                int current = stack.Attributes.GetInt("durability", -1);
+                int current = itemStack.Attributes.GetInt("durability", -1);
                 if (current == newDurability) return;
 
-                stack.Attributes.SetInt("durability", newDurability);
+                itemStack.Attributes.SetInt("durability", newDurability);
+                PrecisionKnappingModSystem.ServerApi?.Logger.Debug(
+                    $"[RARITY-COMPAT] Re-applied ratio {ratio} -> durability {newDurability}/{effectiveMax} on {itemStack.Collectible.Code}");
             }
             catch (Exception)
             {
-                // Silent fail - never break crafting for any reason
+                // Silent fail - never break another mod's rarity application
             }
         }
     }

@@ -84,14 +84,20 @@ namespace precisionknapping
 
             // Apply Harmony patches individually so one failure doesn't block all others
             harmony = new Harmony("com.precisionknapping.mod");
-            var patchTypes = new Type[]
+            var patchTypes = new List<Type>
             {
                 typeof(KnappingSurfacePatch),
                 typeof(KnappingCompletionPatch),
                 typeof(CraftingDurabilityTransferPatch),
-                typeof(StackMergePatch),
-                typeof(RarityCompatPatch)
+                typeof(StackMergePatch)
             };
+
+            // Optional compatibility patch: only when Item Rarity is loaded
+            if (RarityCompatPatch.IsAvailable)
+            {
+                patchTypes.Add(typeof(RarityCompatPatch));
+                api.Logger.Notification("[PrecisionKnapping] Item Rarity detected - RarityCompatPatch enabled");
+            }
 
             foreach (var patchType in patchTypes)
             {

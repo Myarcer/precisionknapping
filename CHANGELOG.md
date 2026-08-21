@@ -58,9 +58,9 @@ Any ingredient with its own durability now carries the ratio.
 Item Rarity assigns its rarity after the tool is crafted and scales the max durability
 virtually. The absolute durability this mod writes at crafting time did not see that
 scale, so a perfect knapped legendary axe showed 75/80 instead of 100/80, and damaged
-rarity tools started "broken". A new patch (`RarityCompatPatch`) runs after Item
-Rarity's craft hook and re-applies our ratio to the effective max durability. Without
-Item Rarity the recomputed value is identical and nothing changes.
+rarity tools started "broken". The fix hooks `Rarity.ApplyRarity` directly and re-applies
+our ratio to the effective max durability right after their multipliers are written.
+Without Item Rarity this patch never loads.
 
 ---
 
