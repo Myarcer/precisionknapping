@@ -185,8 +185,7 @@ namespace precisionknapping
                         if (finalQty > originalQty)
                         {
                             int bonusPercent = (int)((multiplier - 1.0f) * 100);
-                            if (byPlayer is IServerPlayer sp)
-                                sp.SendMessage(0, $"[Precision Knapping] Perfect! +{bonusPercent}% -> {finalQty}/{originalQty} items", EnumChatType.Notification);
+                            KnappingMessageHelper.NotifyQuantityBonus(byPlayer, bonusPercent, finalQty, originalQty);
                         }
                         else
                         {
@@ -196,8 +195,7 @@ namespace precisionknapping
                     else if (multiplier > 1.0f)
                     {
                         int bonusPercent = (int)((multiplier - 1.0f) * 100);
-                        if (byPlayer is IServerPlayer sp)
-                            sp.SendMessage(0, $"[Precision Knapping] Perfect! +{bonusPercent}% (no extra item due to rounding)", EnumChatType.Notification);
+                        KnappingMessageHelper.NotifyQuantityBonusRounding(byPlayer, bonusPercent);
                     }
                 }
 

@@ -1,5 +1,18 @@
 ﻿# Precision Knapping - Changelog
 
+## v1.4.2 (August 21, 2026)
+
+### New Config Option: `ShowMessages`
+
+- Set `ShowMessages: false` in `ModConfig/precisionknapping.json` to silence all mod chat
+  notifications (mistakes, final warning, stone destroyed, completion results).
+- Default is `true`: messages show as before.
+- Mechanics and sounds are unaffected - only the text messages are gated.
+- The two quantity-bonus messages in the completion patch now go through the message helper
+  instead of sending directly, so the config gate covers every message the mod sends.
+
+---
+
 ## v1.4.1 (August 14, 2026)
 
 Release version of the 1.22 update. Version 1.4.0 was a build for test only.

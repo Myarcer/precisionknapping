@@ -78,5 +78,13 @@ namespace precisionknapping
         /// Default: 0.25 (25% bonus)
         /// </summary>
         public float PerfectKnappingBonus { get; set; } = 0.25f;
+
+        /// <summary>
+        /// Show mod chat/notification messages (mistakes, final warning, stone destroyed,
+        /// completion durability/quantity results).
+        /// When disabled, the mod works silently - mechanics and sounds still apply.
+        /// Default: true
+        /// </summary>
+        public bool ShowMessages { get; set; } = true;
     }
 }

@@ -10,8 +10,14 @@ namespace precisionknapping
     {
         private const string Prefix = "[Precision Knapping]";
 
+        /// <summary>
+        /// Global gate for all player-facing messages. Config-driven, default true.
+        /// </summary>
+        public static bool MessagesEnabled => PrecisionKnappingModSystem.Config?.ShowMessages ?? true;
+
         public static void NotifyMistake(IPlayer player, int remaining, float durability = -1)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer)
             {
                 string msg = durability > 0
@@ -23,6 +29,7 @@ namespace precisionknapping
 
         public static void NotifyMistakes(IPlayer player, int count, int remaining, float durability)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer)
             {
                 serverPlayer.SendMessage(0,
@@ -33,6 +40,7 @@ namespace precisionknapping
 
         public static void NotifyFinalWarning(IPlayer player)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer)
             {
                 serverPlayer.SendMessage(0,
@@ -43,6 +51,7 @@ namespace precisionknapping
 
         public static void NotifyStoneDestroyed(IPlayer player, string reason)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer)
             {
                 serverPlayer.SendMessage(0, $"{Prefix} {reason}", EnumChatType.Notification);
@@ -51,6 +60,7 @@ namespace precisionknapping
 
         public static void NotifyCompletionDurability(IPlayer player, int mistakes, float durability)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer)
             {
                 string message;
@@ -76,10 +86,33 @@ namespace precisionknapping
 
         public static void NotifyCompletionQuantity(IPlayer player, int mistakes, int got, int max)
         {
+            if (!MessagesEnabled) return;
             if (player is IServerPlayer serverPlayer && got < max)
             {
                 serverPlayer.SendMessage(0,
                     $"{Prefix} Completed with {mistakes} mistake(s) - received {got}/{max}",
+                    EnumChatType.Notification);
+            }
+        }
+
+        public static void NotifyQuantityBonus(IPlayer player, int bonusPercent, int finalQty, int originalQty)
+        {
+            if (!MessagesEnabled) return;
+            if (player is IServerPlayer serverPlayer)
+            {
+                serverPlayer.SendMessage(0,
+                    $"{Prefix} Perfect! +{bonusPercent}% -> {finalQty}/{originalQty} items",
+                    EnumChatType.Notification);
+            }
+        }
+
+        public static void NotifyQuantityBonusRounding(IPlayer player, int bonusPercent)
+        {
+            if (!MessagesEnabled) return;
+            if (player is IServerPlayer serverPlayer)
+            {
+                serverPlayer.SendMessage(0,
+                    $"{Prefix} Perfect! +{bonusPercent}% (no extra item due to rounding)",
                     EnumChatType.Notification);
             }
         }
