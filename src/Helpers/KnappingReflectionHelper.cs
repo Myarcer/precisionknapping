@@ -1,4 +1,5 @@
 ﻿using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using System;
 using System.Reflection;
 
@@ -19,6 +20,22 @@ namespace precisionknapping
         private static MethodInfo _resolveMethod;
         private static MethodInfo _checkIfFinishedMethod;
 
+        private static MethodInfo _onUseOverMethod;
+        private static FieldInfo _baseMaterialField;
+
+        /// <summary>
+        /// Find a game type (e.g. from VSSurvivalMod) by its full name across all loaded assemblies.
+        /// </summary>
+        public static Type FindGameType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName);
+                if (type != null) return type;
+            }
+            return null;
+        }
+
         /// <summary>
         /// Initialize cached reflection references
         /// </summary>
@@ -26,17 +43,51 @@ namespace precisionknapping
         {
             if (_knappingSurfaceType != null) return;
 
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                _knappingSurfaceType = assembly.GetType("Vintagestory.GameContent.BlockEntityKnappingSurface");
-                if (_knappingSurfaceType != null) break;
-            }
+            _knappingSurfaceType = FindGameType("Vintagestory.GameContent.BlockEntityKnappingSurface");
 
             if (_knappingSurfaceType != null)
             {
                 _voxelsField = _knappingSurfaceType.GetField("Voxels", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 _selectedRecipeProp = _knappingSurfaceType.GetProperty("SelectedRecipe");
+                _baseMaterialField = _knappingSurfaceType.GetField("BaseMaterial", BindingFlags.Public | BindingFlags.Instance);
+                _onUseOverMethod = _knappingSurfaceType.GetMethod("OnUseOver",
+                    BindingFlags.NonPublic | BindingFlags.Instance, null,
+                    new Type[] { typeof(IPlayer), typeof(Vec3i), typeof(BlockFacing), typeof(bool) }, null);
             }
+        }
+
+        /// <summary>
+        /// True if the block entity is a vanilla knapping surface.
+        /// </summary>
+        public static bool IsKnappingSurface(BlockEntity entity)
+        {
+            if (entity == null) return false;
+            Initialize();
+            return _knappingSurfaceType != null
+                ? _knappingSurfaceType.IsInstanceOfType(entity)
+                : entity.GetType().Name == "BlockEntityKnappingSurface";
+        }
+
+        /// <summary>
+        /// The stone the knapping surface is made of (used for particle colors).
+        /// </summary>
+        public static ItemStack GetBaseMaterial(object entity)
+        {
+            Initialize();
+            return _baseMaterialField?.GetValue(entity) as ItemStack;
+        }
+
+        /// <summary>
+        /// Calls the vanilla OnUseOver(IPlayer, Vec3i, BlockFacing, bool) knap handler.
+        /// Goes through the Harmony-patched method, so KnappingSurfacePatch still applies.
+        /// </summary>
+        public static bool CallOnUseOver(object entity, IPlayer player, Vec3i voxelPos, BlockFacing facing)
+        {
+            Initialize();
+            if (_onUseOverMethod == null || entity == null) return false;
+
+            _onUseOverMethod.Invoke(entity, new object[] { player, voxelPos, facing, true });
+            return true;
         }
 
         public static bool[,] GetCurrentVoxels(object entity)

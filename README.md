@@ -8,6 +8,7 @@ A Vintage Story mod that adds realistic fracture mechanics to stone knapping. Ma
 - **Realistic Fracture System**: Clicking interior voxels causes cone-shaped fracture patterns based on real flint knapping physics (Hertzian cone)
 - **Durability Penalties**: In Advanced Mode, mistakes reduce the durability of crafted tool heads
 - **Edge Enforcement**: Advanced Mode requires working from edges inward, like real knapping
+- **Charged Strikes** (optional): Hold to pull the stone back, release to strike. Light strikes are precise, full power strikes knock off whole flakes
 
 ## Installation
 
@@ -31,6 +32,22 @@ Requires Vintage Story 1.22.0 or later. Version 1.4.1 was verified against game 
 - Each mistake reduces final tool durability
 - More realistic and challenging
 
+### Charged Strikes (`ChargedStrikes: true`)
+Works with both modes.
+
+1. **Hold** left click on the stone. Your arm pulls back and holds there.
+2. **Aim** at the voxel you want while holding.
+3. **Release** to strike.
+
+| Hold time | Result |
+|-----------|--------|
+| Less than `MinChargeTimeMs` | Tap. Nothing happens. |
+| Up to `FullChargeTimeMs` | Controlled strike: one voxel, like a normal click. In Advanced Mode, a lighter hit makes a smaller fracture. |
+| `FullChargeTimeMs` or longer | Power strike: knocks off a flake around the voxel (`PowerStrikeRadius`). Protected voxels in the flake count as mistakes. In Advanced Mode, an interior power strike makes a wider fracture. |
+
+You hear a soft tick when the strike is ready and a higher tick when it is fully charged.
+Use power strikes on waste far from the tool shape, and controlled strikes near it.
+
 ---
 
 ## Configuration
@@ -50,6 +67,22 @@ Config file location: `VintagestoryData/ModConfig/precisionknapping.json`
 - `1` = Strict - first mistake breaks stone (vanilla-like)
 - `3` = Forgiving - allows some mistakes with durability penalty
 - `5` = Casual - very forgiving, good for learning
+
+### Charged Strikes Settings
+
+The server's values for the first four settings are sent to every player, so a client's own
+config can't disagree with the server. The last four are personal client settings.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ChargedStrikes` | bool | `false` | Hold to charge, release to strike |
+| `MinChargeTimeMs` | int | `350` | Shorter holds are taps that do nothing |
+| `FullChargeTimeMs` | int | `1200` | Hold time for a power strike |
+| `PowerStrikeRadius` | int | `1` | Power strike flake size: 0 = one voxel, 1 = plus shape (5 voxels), 2 = diamond (13 voxels), max 3 |
+| `EnableChargeSounds` | bool | `true` | Charge cues and the heavier power strike sound |
+| `EnableStrikeCameraShake` | bool | `true` | Small camera shake on strong strikes |
+| `ChargeAnimation` | string | `"aim"` | Player animation held while charging (the game's throw wind-up) |
+| `StrikeAnimation` | string | `"knap"` | Player animation played once on release |
 
 ### Fracture Physics (Advanced Mode Only)
 
@@ -179,6 +212,8 @@ The scaling adjusts based on `MistakeAllowance`:
 - Edge voxels work normally (single voxel removal)
 - "Virtual edges" are recognized around recipe pattern holes
 - Durability transfer works for tool heads ÔåÆ finished tools via crafting grid
+- Mistakes are saved with the knapping surface, so leaving and coming back keeps the count
+- Charged Strikes needs the mod on both the server and every client
 
 ## License
 

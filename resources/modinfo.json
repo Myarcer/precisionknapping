@@ -5,8 +5,8 @@
   "authors": [
     "Nyarc"
   ],
-  "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties.",
-  "version": "1.4.1",
+  "description": "Adds precision mechanics to knapping. Perfect work gets bonus durability! Default mode: hitting critical areas destroys the stone. Advanced mode: edge enforcement, graduated durability bonuses/penalties. Optional Charged Strikes: hold to pull back, release to strike.",
+  "version": "1.5.0",
   "dependencies": {
     "game": "1.22.0"
   },

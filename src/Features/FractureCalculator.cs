@@ -28,9 +28,10 @@ namespace precisionknapping
         /// <param name="nearestEdge">The edge point the fracture propagates toward</param>
         /// <param name="currentVoxels">Current voxel state (16x16)</param>
         /// <param name="config">Config with cone angle and spread settings</param>
+        /// <param name="spreadMultiplier">Scales FractureSpreadRate (charged strikes: harder hit = wider cone)</param>
         /// <returns>HashSet of all voxel positions to remove</returns>
         public static HashSet<Vec2i> CalculateFractureZone(Vec2i impactPoint, Vec2i nearestEdge, 
-            bool[,] currentVoxels, PrecisionKnappingConfig config)
+            bool[,] currentVoxels, PrecisionKnappingConfig config, float spreadMultiplier = 1f)
         {
             var fractureZone = new HashSet<Vec2i>();
             
@@ -72,7 +73,7 @@ namespace precisionknapping
                 
                 // Cone width at this distance (starts narrow, widens with distance)
                 // Width = distance * tan(halfAngle) * spreadRate
-                float baseWidth = step * coneHalfTan * config.FractureSpreadRate;
+                float baseWidth = step * coneHalfTan * config.FractureSpreadRate * spreadMultiplier;
                 float width = Math.Max(0.5f, baseWidth); // Minimum width of 0.5
                 
                 // Probability decreases with distance (fracture becomes less predictable)
@@ -117,7 +118,8 @@ namespace precisionknapping
         /// <summary>
         /// Legacy overload for compatibility - extracts edge from path.
         /// </summary>
-        public static HashSet<Vec2i> CalculateFractureZone(List<Vec2i> path, bool[,] currentVoxels, PrecisionKnappingConfig config)
+        public static HashSet<Vec2i> CalculateFractureZone(List<Vec2i> path, bool[,] currentVoxels,
+            PrecisionKnappingConfig config, float spreadMultiplier = 1f)
         {
             if (path == null || path.Count == 0)
                 return new HashSet<Vec2i>();
@@ -126,7 +128,7 @@ namespace precisionknapping
             Vec2i impactPoint = path[0];
             Vec2i nearestEdge = path[path.Count - 1];
             
-            return CalculateFractureZone(impactPoint, nearestEdge, currentVoxels, config);
+            return CalculateFractureZone(impactPoint, nearestEdge, currentVoxels, config, spreadMultiplier);
         }
 
         /// <summary>

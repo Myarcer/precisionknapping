@@ -1,5 +1,47 @@
 ﻿# Precision Knapping - Changelog
 
+## v1.5.0 (unreleased)
+
+### Charged Strikes are back (rebuilt)
+
+Turn on with `"ChargedStrikes": true`. Hold left click on the knapping surface to pull the stone
+back, aim, and release to strike.
+
+- **No more machine-gun arm.** The old version fought the game's hit animation, which restarts
+  every time it ends while the mouse is held. Now the held attack stays "held": the arm stays in
+  one pulled-back pose for as long as you hold, and plays one swing when you release.
+- **Three strike strengths:**
+  - Tap (released before `MinChargeTimeMs`): does nothing, a hint tells you to hold.
+  - Controlled strike: removes one voxel, like a normal click. In Advanced Mode, an interior hit
+    makes a smaller fracture the lighter you hit.
+  - Power strike (held for `FullChargeTimeMs`): knocks off a flake (`PowerStrikeRadius`). Fast for
+    clearing waste, but protected voxels in the flake count as mistakes. In Advanced Mode an
+    interior power strike makes a wider fracture.
+- **Impact feedback:** charge cues (strike ready, power ready), a deeper and louder strike, more
+  stone chips, and a small camera shake on power strikes. Sounds and shake can be turned off.
+- **Multiplayer safe:** the server sends its settings to each player, so client and server always
+  agree. The server checks reach, land claims, and that a strike's charge is possible.
+- Quick clicks can no longer knap while Charged Strikes is on.
+
+New config: `ChargedStrikes`, `MinChargeTimeMs`, `FullChargeTimeMs`, `PowerStrikeRadius`,
+`EnableChargeSounds`, `EnableStrikeCameraShake`, `ChargeAnimation`, `StrikeAnimation`.
+
+### Bug fixes
+
+- The mistake warning and fracture sounds were never heard by the player who knapped. The server
+  sent them to every player except that one.
+- Mistakes were tracked by block position and never saved. A new knapping surface at the same spot
+  could inherit an old mistake count, and a chunk reload or server restart reset the count to 0.
+  Mistakes now belong to the surface and are saved with it.
+- In singleplayer, all Harmony patches were applied twice (client and server both start the mod).
+- If the game threw an error during recipe completion, the bonus/penalty stayed on the shared
+  recipe output for every later knap. The output is now always restored.
+- Learn Mode no longer shows yellow/red "fracture risk" in Default Mode, where fractures don't
+  exist. Advanced Mode now comes from the server in multiplayer.
+- Knap packets with a negative voxel position are ignored.
+
+---
+
 ## v1.4.1 (August 14, 2026)
 
 Release version of the 1.22 update. Version 1.4.0 was a build for test only.

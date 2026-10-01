@@ -4,7 +4,6 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Config;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using HarmonyLib;
 
 namespace precisionknapping
@@ -22,6 +21,7 @@ namespace precisionknapping
     ///   - Each protected voxel removed counts as mistake
     ///   - Mistakes reduce durability: 0=100%, 1=75%, 2=50%, 3=25%, 4+=break
     ///   - Tool heads get durability reduction, non-tool items lose quantity
+    /// - Charged Strikes (optional, either mode): hold to pull the stone back, release to strike
     ///
     /// FILE STRUCTURE:
     /// - src/Core/PrecisionKnappingConfig.cs      - Configuration class
@@ -31,12 +31,17 @@ namespace precisionknapping
     /// - src/Helpers/AdvancedKnappingHelper.cs    - Edge detection, mistakes
     /// - src/Features/FractureCalculator.cs       - Fracture zone mechanics
     /// - src/Features/LearnModeOverlayRenderer.cs - Visual overlay
+    /// - src/Features/ChargedStrikes/             - Charged Strikes (state, network, client, animations)
     /// - src/Patches/KnappingSurfacePatch.cs      - OnUseOver Harmony patch
     /// - src/Patches/KnappingCompletionPatch.cs   - CheckIfFinished patch
+    /// - src/Patches/KnappingPersistencePatch.cs  - Saves the mistake count with the surface
+    /// - src/Patches/KnappingStonePatches.cs      - Hold/release input for Charged Strikes
     /// - src/Patches/CraftingTransferPatch.cs     - Crafting durability patch
     /// </summary>
     public class PrecisionKnappingModSystem : ModSystem
     {
+        public const string HarmonyId = "com.precisionknapping.mod";
+
         private static PrecisionKnappingModSystem instance;
         private Harmony harmony;
         private static PrecisionKnappingConfig config;
@@ -80,13 +85,28 @@ namespace precisionknapping
                 config = new PrecisionKnappingConfig();
             }
 
+            // In singleplayer the client and the server both run Start in the same process.
+            // Harmony patches are process-wide, so apply them only once.
+            if (Harmony.HasAnyPatches(HarmonyId))
+            {
+                api.Logger.Notification("[PrecisionKnapping] Harmony patches already applied (singleplayer), skipping.");
+                return;
+            }
+
             // Apply Harmony patches individually so one failure doesn't block all others
-            harmony = new Harmony("com.precisionknapping.mod");
+            harmony = new Harmony(HarmonyId);
             var patchTypes = new Type[]
             {
                 typeof(KnappingSurfacePatch),
                 typeof(KnappingCompletionPatch),
-                typeof(CraftingDurabilityTransferPatch)
+                typeof(CraftingDurabilityTransferPatch),
+                typeof(KnappingSaveMistakesPatch),
+                typeof(KnappingLoadMistakesPatch),
+                typeof(KnappingStoneAttackStartPatch),
+                typeof(KnappingStoneAttackStepPatch),
+                typeof(KnappingStoneAttackCancelPatch),
+                typeof(KnappingStoneAttackStopPatch),
+                typeof(KnappingStoneHitAnimationPatch)
             };
 
             foreach (var patchType in patchTypes)
@@ -107,7 +127,10 @@ namespace precisionknapping
 
         public override void Dispose()
         {
-            harmony?.UnpatchAll("com.precisionknapping.mod");
+            // Only the instance that applied the patches removes them
+            harmony?.UnpatchAll(HarmonyId);
+            harmony = null;
+            ChargedStrikeClient.Dispose();
             base.Dispose();
         }
 
@@ -115,13 +138,19 @@ namespace precisionknapping
         {
             base.StartServerSide(api);
             serverApi = api;
-            api.Logger.Notification("[PrecisionKnapping] Server initialized");
+
+            // Always registered: the server's settings decide whether Charged Strikes is on
+            new ChargedStrikeServer(api);
+
+            api.Logger.Notification($"[PrecisionKnapping] Server initialized (Charged Strikes: {(Config?.ChargedStrikes == true ? "on" : "off")})");
         }
 
         public override void StartClientSide(ICoreClientAPI api)
         {
             base.StartClientSide(api);
             Capi = api;
+
+            new ChargedStrikeClient(api);
 
             // Initialize Learn Mode overlay if enabled
             if (Config?.LearnModeOverlay == true)

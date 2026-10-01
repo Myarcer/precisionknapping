@@ -1,8 +1,8 @@
 ﻿using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.API.Datastructures;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace precisionknapping
 {
@@ -118,80 +118,64 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Get or initialize the mistake count for a BlockEntity.
-        /// Uses static dictionary as primary (reliable), with BlockEntity attributes as backup for persistence
+        /// Tree attribute key used to save the mistake count with the knapping surface.
         /// </summary>
-        private static Dictionary<BlockPos, int> mistakeCountCache = new Dictionary<BlockPos, int>();
+        public const string MistakeAttributeKey = "precisionknapping:mistakes";
+
+        /// <summary>
+        /// Mistake count per knapping surface instance.
+        /// Keyed by the BlockEntity object (not its position), so a new surface placed at the
+        /// same spot starts clean, and entries vanish when the surface is unloaded.
+        /// Saved/loaded with the block entity by KnappingPersistencePatch.
+        /// </summary>
+        private static readonly ConditionalWeakTable<BlockEntity, StrongBox<int>> mistakeCounts =
+            new ConditionalWeakTable<BlockEntity, StrongBox<int>>();
 
         public static int GetMistakeCount(BlockEntity entity)
         {
-            try
-            {
-                // Primary: Use position-based cache (fast, reliable within session)
-                if (mistakeCountCache.TryGetValue(entity.Pos, out int cached))
-                {
-                    return cached;
-                }
-                
-                // Fallback: Check BlockEntity attributes (persists if player walks away and back)
-                // BlockEntity has a public Attributes property we can access directly
-                if (entity is BlockEntity be && be.Block != null)
-                {
-                    var attrs = be.GetType().GetProperty("Attributes")?.GetValue(be) as ITreeAttribute;
-                    if (attrs != null)
-                    {
-                        int stored = attrs.GetInt("precisionknapping:mistakes", 0);
-                        if (stored > 0)
-                        {
-                            mistakeCountCache[entity.Pos] = stored; // Sync to cache
-                            return stored;
-                        }
-                    }
-                }
-                
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                entity.Api?.Logger.Error($"[MISTAKE-TRACKING] Error getting mistake count: {ex.Message}");
-                return 0;
-            }
+            if (entity == null) return 0;
+            return mistakeCounts.TryGetValue(entity, out var box) ? box.Value : 0;
         }
 
         /// <summary>
-        /// Set the mistake count for a BlockEntity.
-        /// Stores in both cache and BlockEntity attributes for reliability
+        /// Set the mistake count for a knapping surface and mark it for saving.
         /// </summary>
         public static void SetMistakeCount(BlockEntity entity, int count)
         {
-            try
+            if (entity == null) return;
+
+            if (count <= 0)
             {
-                // Always update cache (primary)
-                mistakeCountCache[entity.Pos] = count;
-                
-                // Also try to persist to BlockEntity attributes (backup)
-                if (entity is BlockEntity be)
-                {
-                    var attrs = be.GetType().GetProperty("Attributes")?.GetValue(be) as ITreeAttribute;
-                    if (attrs != null)
-                    {
-                        attrs.SetInt("precisionknapping:mistakes", count);
-                        be.MarkDirty(true);
-                    }
-                }
+                mistakeCounts.Remove(entity);
             }
-            catch (Exception ex)
+            else
             {
-                entity.Api?.Logger.Error($"[MISTAKE-TRACKING] Error setting mistake count: {ex.Message}");
+                mistakeCounts.AddOrUpdate(entity, new StrongBox<int>(count));
             }
+
+            // Persist through ToTreeAttributes (see KnappingPersistencePatch)
+            entity.MarkDirty();
         }
 
         /// <summary>
         /// Clear mistake count when stone is broken or recipe completed
         /// </summary>
-        public static void ClearMistakeCount(BlockPos pos)
+        public static void ClearMistakeCount(BlockEntity entity)
         {
-            mistakeCountCache.Remove(pos);
+            if (entity == null) return;
+            mistakeCounts.Remove(entity);
+        }
+
+        /// <summary>
+        /// Restore a saved mistake count without marking the block entity dirty.
+        /// Used when the block entity is loaded from disk or synced from the server.
+        /// </summary>
+        internal static void LoadMistakeCount(BlockEntity entity, int count)
+        {
+            if (entity == null) return;
+
+            if (count <= 0) mistakeCounts.Remove(entity);
+            else mistakeCounts.AddOrUpdate(entity, new StrongBox<int>(count));
         }
 
         /// <summary>
@@ -390,6 +374,24 @@ namespace precisionknapping
 
             // Only return the pocket if it's truly enclosed (doesn't reach an edge)
             return reachesEdge ? new HashSet<Vec2i>() : pocket;
+        }
+
+        /// <summary>
+        /// True if at least one voxel is left on the knapping surface.
+        /// </summary>
+        public static bool HasAnyVoxel(bool[,] currentVoxels)
+        {
+            if (currentVoxels == null) return true; // Unknown state - don't treat as empty
+
+            for (int x = 0; x < 16; x++)
+            {
+                for (int z = 0; z < 16; z++)
+                {
+                    if (currentVoxels[x, z]) return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

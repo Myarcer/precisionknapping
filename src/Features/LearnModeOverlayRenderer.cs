@@ -165,6 +165,10 @@ namespace precisionknapping
 
         private int AnalyzeVoxelSafety(int x, int z, bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config)
         {
+            // Fractures only exist in Advanced Mode - in Default Mode every waste voxel is safe
+            if (config?.AdvancedMode != true)
+                return 0;
+
             // Edge voxel = Safe (0)
             if (AdvancedKnappingHelper.IsEdgeVoxel(x, z, currentVoxels, recipeVoxels))
                 return 0;

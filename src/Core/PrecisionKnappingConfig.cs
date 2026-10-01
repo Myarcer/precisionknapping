@@ -78,5 +78,62 @@ namespace precisionknapping
         /// Default: 0.25 (25% bonus)
         /// </summary>
         public float PerfectKnappingBonus { get; set; } = 0.25f;
+
+        // ==================== CHARGED STRIKES ====================
+
+        /// <summary>
+        /// Enable Charged Strikes: hold left-click to pull the stone back, release to strike.
+        /// Works with both Default and Advanced mode. The server's value is sent to every client.
+        /// Default: false
+        /// </summary>
+        public bool ChargedStrikes { get; set; } = false;
+
+        /// <summary>
+        /// Minimum hold time in milliseconds. Releasing earlier is a "tap" that does nothing.
+        /// Default: 350
+        /// </summary>
+        public int MinChargeTimeMs { get; set; } = 350;
+
+        /// <summary>
+        /// Hold time in milliseconds for a full charge (a power strike).
+        /// Charge level = hold time / FullChargeTimeMs, capped at 100%.
+        /// Default: 1200
+        /// </summary>
+        public int FullChargeTimeMs { get; set; } = 1200;
+
+        /// <summary>
+        /// Size of the flake a fully charged power strike knocks off.
+        /// 0 = power strikes remove one voxel (impact effects only), 1 = target + 4 neighbours,
+        /// 2 = a diamond of 13 voxels. Protected voxels inside the flake count as mistakes.
+        /// In Advanced Mode, a power strike on an interior voxel widens the fracture cone instead.
+        /// Range: 0 - 3. Default: 1
+        /// </summary>
+        public int PowerStrikeRadius { get; set; } = 1;
+
+        /// <summary>
+        /// Client: play charge cues (strike ready / power ready) and heavier strike sounds.
+        /// Default: true
+        /// </summary>
+        public bool EnableChargeSounds { get; set; } = true;
+
+        /// <summary>
+        /// Client: shake the camera a little on strong strikes.
+        /// Default: true
+        /// </summary>
+        public bool EnableStrikeCameraShake { get; set; } = true;
+
+        /// <summary>
+        /// Client: the player animation held while charging (arm pulled back).
+        /// "aim" is the game's throw wind-up pose. Change only if you know another animation code.
+        /// Default: "aim"
+        /// </summary>
+        public string ChargeAnimation { get; set; } = "aim";
+
+        /// <summary>
+        /// Client: the player animation played once on release.
+        /// "knap" is the game's knapping swing.
+        /// Default: "knap"
+        /// </summary>
+        public string StrikeAnimation { get; set; } = "knap";
     }
 }

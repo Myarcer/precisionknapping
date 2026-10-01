@@ -1,4 +1,5 @@
 ﻿using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.Server;
 using System;
 using System.Collections.Generic;
@@ -16,7 +17,7 @@ namespace precisionknapping
     /// 2. If mistakes exist: "heal" the voxel grid so vanilla sees a perfect match
     /// 3. Modify the recipe's ResolvedItemstack in-place with our bonuses/penalties
     /// 4. Return true - vanilla handles completion naturally (items, events, tutorial, block removal)
-    /// 5. Postfix: Restore the recipe output to its original state (shared resource)
+    /// 5. Finalizer: Restore the recipe output to its original state (shared resource)
     /// </summary>
     [HarmonyPatch]
     public static class KnappingCompletionPatch
@@ -24,6 +25,7 @@ namespace precisionknapping
         // Temporary storage for restoring recipe output after vanilla processes it
         private static ItemStack _originalResolvedStack;
         private static int _originalStackSize;
+        private static ITreeAttribute _originalAttributes;
         private static bool _needsRestore;
         // Re-entry guard: vanilla CheckIfFinished can re-trigger after we heal voxels
         private static bool _isProcessing;
@@ -64,8 +66,11 @@ namespace precisionknapping
         /// ALWAYS returns true so vanilla runs and triggers all events (including tutorial).
         /// </summary>
         [HarmonyPrefix]
-        static bool Prefix(object __instance, IPlayer byPlayer)
+        static bool Prefix(object __instance, IPlayer byPlayer, out bool __state)
         {
+            // __state = true when this call owns the re-entry guard (only the owner restores)
+            __state = false;
+
             try
             {
                 var entity = __instance as BlockEntity;
@@ -76,6 +81,7 @@ namespace precisionknapping
 
                 _needsRestore = false;
                 _isProcessing = true;
+                __state = true;
 
                 int mistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
 
@@ -148,6 +154,7 @@ namespace precisionknapping
                 // Store original state for postfix restoration
                 _originalResolvedStack = resolvedStack;
                 _originalStackSize = resolvedStack.StackSize;
+                _originalAttributes = resolvedStack.Attributes?.Clone();
                 _needsRestore = true;
 
                 entity.Api.Logger.Debug($"[COMPLETION-PATCH] Modifying output: {itemCode}, isToolHead={isToolHead}, hasDurability={hasDurability}, mistakes={mistakes}");
@@ -202,7 +209,7 @@ namespace precisionknapping
                 }
 
                 // Clear mistake count before vanilla processes
-                AdvancedKnappingHelper.ClearMistakeCount(entity.Pos);
+                AdvancedKnappingHelper.ClearMistakeCount(entity);
 
                 entity.Api.Logger.Debug("[COMPLETION-PATCH] State modified, letting vanilla handle completion");
 
@@ -212,7 +219,6 @@ namespace precisionknapping
             }
             catch (Exception ex)
             {
-                _isProcessing = false;
                 try
                 {
                     var entity = __instance as BlockEntity;
@@ -225,12 +231,18 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Postfix: Restore recipe output to original state after vanilla processed it.
+        /// Finalizer: Restore recipe output to original state after vanilla processed it.
         /// The recipe's ResolvedItemstack is a shared resource - must be restored for next use.
+        /// A finalizer (not a postfix) so this also runs when vanilla throws; otherwise the
+        /// modified output and the re-entry guard would stay stuck for every later knap.
         /// </summary>
-        [HarmonyPostfix]
-        static void Postfix(object __instance)
+        [HarmonyFinalizer]
+        static void Finalizer(bool __state)
         {
+            // Only the outermost call cleans up; a nested call must not restore the
+            // output while the outer vanilla call is still using it
+            if (!__state) return;
+
             // Always clear re-entry guard
             _isProcessing = false;
 
@@ -241,17 +253,26 @@ namespace precisionknapping
                 // Restore original stack size (for stackable items)
                 _originalResolvedStack.StackSize = _originalStackSize;
 
-                // Remove our custom attributes from the shared template
-                _originalResolvedStack.Attributes.RemoveAttribute("precisionknapping:durabilityRatio");
-                _originalResolvedStack.Attributes.RemoveAttribute("durability");
+                // Restore the template's attributes exactly as they were (keeps any
+                // attributes the recipe JSON itself defined, e.g. a preset durability)
+                if (_originalAttributes != null)
+                {
+                    _originalResolvedStack.Attributes = _originalAttributes;
+                }
+                else
+                {
+                    _originalResolvedStack.Attributes.RemoveAttribute("precisionknapping:durabilityRatio");
+                    _originalResolvedStack.Attributes.RemoveAttribute("durability");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[COMPLETION-PATCH] Postfix restore error: {ex.Message}");
+                Console.WriteLine($"[COMPLETION-PATCH] Restore error: {ex.Message}");
             }
             finally
             {
                 _originalResolvedStack = null;
+                _originalAttributes = null;
                 _needsRestore = false;
             }
         }
