@@ -101,7 +101,7 @@ namespace precisionknapping
                 // No durability penalty - you get 100% item or nothing
                 if (isProtected)
                 {
-                    return HandleDefaultModeMistake(entity, byPlayer, voxelPos, config);
+                    return HandleDefaultModeMistake(entity, byPlayer, voxelPos, currentVoxels, recipeVoxels, config);
                 }
 
                 return true; // Allow vanilla behavior - safe voxel
@@ -118,7 +118,8 @@ namespace precisionknapping
         /// <summary>
         /// Handle Default Mode mistake - counts toward breaking, NOT durability
         /// </summary>
-        static bool HandleDefaultModeMistake(BlockEntity entity, IPlayer byPlayer, Vec3i voxelPos, PrecisionKnappingConfig config)
+        static bool HandleDefaultModeMistake(BlockEntity entity, IPlayer byPlayer, Vec3i voxelPos,
+            bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config)
         {
             // Only process on server side
             if (entity.Api.Side != EnumAppSide.Server)
@@ -126,7 +127,7 @@ namespace precisionknapping
                 return true; // Let server handle
             }
 
-            int currentMistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
+            int currentMistakes = AdvancedKnappingHelper.CountMistakes(currentVoxels, recipeVoxels);
             int newTotal = currentMistakes + 1;
             int allowance = config?.MistakeAllowance ?? 1;
 
@@ -136,9 +137,6 @@ namespace precisionknapping
                 return HandleProtectedVoxelHit(entity, byPlayer, voxelPos,
                     $"Too many mistakes ({newTotal})! Stone destroyed.");
             }
-
-            // Register mistake
-            AdvancedKnappingHelper.SetMistakeCount(entity, newTotal);
 
             if (byPlayer is IServerPlayer serverPlayer)
             {
@@ -156,12 +154,27 @@ namespace precisionknapping
             // Play warning sound
             KnappingSoundHelper.PlayWarningSound(entity.Api, entity.Pos, byPlayer);
 
-            // Manually remove the voxel for visual feedback
-            KnappingReflectionHelper.RemoveVoxel(entity, voxelPos.X, voxelPos.Z);
-            entity.MarkDirty(true);
+            RemoveProtectedVoxel(entity, byPlayer, voxelPos, currentVoxels, recipeVoxels);
 
             // Return FALSE to prevent vanilla from running (which could break recipe validation)
             return false;
+        }
+
+        /// <summary>
+        /// Remove a protected voxel that a mistake hit, then drop the waste that hung only on it
+        /// </summary>
+        static void RemoveProtectedVoxel(BlockEntity entity, IPlayer byPlayer, Vec3i voxelPos,
+            bool[,] currentVoxels, bool[,,] recipeVoxels)
+        {
+            KnappingReflectionHelper.RemoveVoxel(entity, voxelPos.X, voxelPos.Z);
+
+            // Vanilla drops waste that loses its link to the shape, but only after it removes a waste voxel.
+            // Without this, waste that was linked to the shape only through the hit voxel stays on the surface.
+            AdvancedKnappingHelper.RemoveDisconnectedVoxels(currentVoxels, recipeVoxels);
+            entity.MarkDirty(true);
+
+            // The dropped waste can be the last waste, so the recipe can be complete now.
+            KnappingReflectionHelper.CallCheckIfFinished(entity, byPlayer);
         }
 
         /// <summary>
@@ -190,7 +203,7 @@ namespace precisionknapping
                 // Clicking an edge voxel - check if protected
                 if (isProtected)
                 {
-                    return HandleMistake(entity, byPlayer, voxelPos, config, 1, "Hit protected voxel!");
+                    return HandleMistake(entity, byPlayer, voxelPos, currentVoxels, recipeVoxels, config, 1);
                 }
                 return true; // Safe edge click - allow vanilla
             }
@@ -229,7 +242,7 @@ namespace precisionknapping
                     // No path to edge found and not an enclosed pocket
                     if (isProtected)
                     {
-                        return HandleMistake(entity, byPlayer, voxelPos, config, 1, "Hit protected voxel!");
+                        return HandleMistake(entity, byPlayer, voxelPos, currentVoxels, recipeVoxels, config, 1);
                     }
                     return true;
                 }
@@ -244,7 +257,7 @@ namespace precisionknapping
                 if (protectedCount > 0)
                 {
                     // Check if this exceeds allowance
-                    int currentMistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
+                    int currentMistakes = AdvancedKnappingHelper.CountMistakes(currentVoxels, recipeVoxels);
                     int newTotal = currentMistakes + protectedCount;
 
                     if (newTotal > config.MistakeAllowance)
@@ -254,8 +267,7 @@ namespace precisionknapping
                             $"Too many mistakes ({newTotal})! Stone destroyed.");
                     }
 
-                    // Register mistakes but continue
-                    AdvancedKnappingHelper.SetMistakeCount(entity, newTotal);
+                    // The fracture removal below takes the protected voxels off the surface, which records the mistakes.
                     int remaining = config.MistakeAllowance - newTotal;
 
                     // Only show durability % if scaling is enabled
@@ -298,11 +310,11 @@ namespace precisionknapping
         /// Handle a single mistake in Advanced Mode
         /// </summary>
         static bool HandleMistake(BlockEntity entity, IPlayer byPlayer, Vec3i voxelPos,
-            PrecisionKnappingConfig config, int mistakeCount, string message)
+            bool[,] currentVoxels, bool[,,] recipeVoxels, PrecisionKnappingConfig config, int mistakeCount)
         {
             if (entity.Api.Side != EnumAppSide.Server) return true;
 
-            int currentMistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
+            int currentMistakes = AdvancedKnappingHelper.CountMistakes(currentVoxels, recipeVoxels);
             int newTotal = currentMistakes + mistakeCount;
 
             if (newTotal > config.MistakeAllowance)
@@ -312,8 +324,6 @@ namespace precisionknapping
                     $"Too many mistakes ({newTotal})! Stone destroyed.");
             }
 
-            // Register mistake
-            AdvancedKnappingHelper.SetMistakeCount(entity, newTotal);
             int remaining = config.MistakeAllowance - newTotal;
 
             // Only show durability % if scaling is enabled
@@ -328,9 +338,7 @@ namespace precisionknapping
             }
             KnappingSoundHelper.PlayWarningSound(entity.Api, entity.Pos, byPlayer);
 
-            // Manually remove the voxel for visual feedback
-            KnappingReflectionHelper.RemoveVoxel(entity, voxelPos.X, voxelPos.Z);
-            entity.MarkDirty(true);
+            RemoveProtectedVoxel(entity, byPlayer, voxelPos, currentVoxels, recipeVoxels);
 
             // Return FALSE to prevent vanilla from running (which could break recipe validation)
             return false;
@@ -346,9 +354,6 @@ namespace precisionknapping
             {
                 return true; // Let server handle it
             }
-
-            // Clear mistake count for this surface
-            AdvancedKnappingHelper.ClearMistakeCount(entity);
 
             // Play stone breaking sound
             KnappingSoundHelper.PlayStoneBreakSound(entity.Api, entity.Pos);

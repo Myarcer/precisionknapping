@@ -86,8 +86,6 @@ namespace precisionknapping
                 _needsRestore = false;
                 _processingPositions.Add(entity.Pos);
 
-                int mistakes = AdvancedKnappingHelper.GetMistakeCount(entity);
-
                 var currentVoxels = KnappingReflectionHelper.GetCurrentVoxels(entity);
                 var selectedRecipe = KnappingReflectionHelper.GetSelectedRecipe(entity);
 
@@ -122,6 +120,9 @@ namespace precisionknapping
                 }
 
                 if (!allWasteRemoved) return true; // Not done yet
+
+                // Each missing protected voxel is one mistake, so the count comes from the surface itself.
+                int mistakes = missingProtectedPositions.Count;
 
                 var config = PrecisionKnappingModSystem.Config;
                 bool scalingEnabled = config?.EnableDurabilityScaling ?? true;
@@ -215,9 +216,6 @@ namespace precisionknapping
                         KnappingMessageHelper.NotifyQuantityBonusRounding(byPlayer, bonusPercent);
                     }
                 }
-
-                // Clear mistake count before vanilla processes
-                AdvancedKnappingHelper.ClearMistakeCount(entity);
 
                 entity.Api.Logger.Debug("[COMPLETION-PATCH] State modified, letting vanilla handle completion");
 

@@ -12,6 +12,33 @@
 - Modded tool parts with durability now keep their quality bonus after crafting.
 - Item Rarity works with this mod again. The knapping bonus or penalty now uses the
   rarity-scaled max durability, so a legendary tool gets its full percentage.
+- Mistakes on half-knapped stone now stay after relog, server restart or chunk unload.
+  Before, count started at zero again, and stone could still get perfect-work bonus.
+- When mistake hit cuts waste off from tool shape, loose waste now drops at once, same as vanilla.
+
+---
+
+## v1.4.4 (November 23, 2026)
+
+### Fixed: mistake count resets after relog
+
+Mod kept mistake count in memory only, keyed on knapping surface object. Relog, server
+restart or chunk unload makes game load surface again as new object, so count went back
+to zero. Save keeps voxel grid, so stone stayed damaged, but mod forgot its mistakes.
+Players could get unlimited mistakes with relogs. At completion, count said zero, so
+surface also gave perfect-work bonus.
+
+Mod now counts mistakes from voxel grid: each recipe voxel that is gone from surface is
+one mistake. Vanilla never removes recipe voxel, so only mistakes remove one. Count needs
+no new save data. Half-knapped surfaces in old worlds get their correct count after update.
+
+### Fixed: loose waste stays after mistake hit
+
+When player removes waste voxel, vanilla drops all waste that has no link to tool shape
+any more. Mistake hit removes protected voxel, and vanilla never does that, so vanilla
+check did not run. Waste linked to shape only through hit voxel stayed on surface. Mod
+now drops that waste after each mistake hit. When dropped waste was last waste, recipe
+completes at once.
 
 ---
 

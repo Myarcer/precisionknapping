@@ -2,7 +2,6 @@
 using Vintagestory.API.MathTools;
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace precisionknapping
 {
@@ -118,38 +117,23 @@ namespace precisionknapping
         }
 
         /// <summary>
-        /// Mistake count per BlockEntity instance.
-        ///
-        /// ConditionalWeakTable keys on the entity object itself:
-        /// - A new surface at the same BlockPos never inherits an old count
-        ///   (the old BlockPos-keyed dictionary leaked counts into replacement surfaces).
-        /// - Unloaded entities can be garbage collected; their count goes with them.
-        /// Counts are session-only by design: after a server restart a half-knapped
-        /// surface continues with 0 mistakes, same as vanilla behavior for the voxels.
+        /// Count the mistakes on a surface: recipe voxels that are gone from the surface.
+        /// Vanilla never removes a recipe voxel, so each missing one is a mistake.
+        /// The game saves the voxel grid, so the count survives a relog, a server restart and a chunk unload.
         /// </summary>
-        private static readonly ConditionalWeakTable<BlockEntity, StrongBox<int>> mistakeCounts =
-            new ConditionalWeakTable<BlockEntity, StrongBox<int>>();
-
-        public static int GetMistakeCount(BlockEntity entity)
+        public static int CountMistakes(bool[,] currentVoxels, bool[,,] recipeVoxels)
         {
-            if (entity == null) return 0;
-            return mistakeCounts.TryGetValue(entity, out StrongBox<int> box) ? box.Value : 0;
-        }
+            if (currentVoxels == null || recipeVoxels == null) return 0;
 
-        public static void SetMistakeCount(BlockEntity entity, int count)
-        {
-            if (entity == null) return;
-            mistakeCounts.Remove(entity);
-            mistakeCounts.Add(entity, new StrongBox<int>(count));
-        }
-
-        /// <summary>
-        /// Clear mistake count when stone is broken or recipe completed
-        /// </summary>
-        public static void ClearMistakeCount(BlockEntity entity)
-        {
-            if (entity == null) return;
-            mistakeCounts.Remove(entity);
+            int count = 0;
+            for (int x = 0; x < 16; x++)
+            {
+                for (int z = 0; z < 16; z++)
+                {
+                    if (recipeVoxels[x, 0, z] && !currentVoxels[x, z]) count++;
+                }
+            }
+            return count;
         }
 
         /// <summary>

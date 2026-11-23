@@ -1,6 +1,6 @@
 # Precision Knapping - Future Features and Known Gaps
 
-Status after the v1.4.3 bug-fix round (August 21, 2026).
+Status after the v1.4.4 bug-fix round (November 23, 2026).
 
 ## Known Incompatibilities
 
@@ -9,7 +9,13 @@ it runs after Item Rarity's craft hook and re-applies our ratio to the rarity-sc
 max durability. Verified against ItemRarity 1.2.2 decompiled source
 (`CollectibleObjectPatch.GetMaxDurabilityPatch`, `PatchHelpers.ConsumeCraftingIngredients`).
 
-## Core Logic Bugs - all fixed in v1.4.3
+## Core Logic Bugs - all fixed
+
+- Mistake count lost on relog, server restart or chunk unload - fixed in v1.4.4
+  (count now comes from saved voxel grid: each missing recipe voxel is one mistake)
+- Loose waste stayed on surface after mistake hit - fixed in v1.4.4
+
+Fixed in v1.4.3:
 
 - Stale mistake resurrection (position-keyed counts leaked into replacement surfaces) - fixed
 - Multiplayer completion race (global re-entry guard) - fixed
